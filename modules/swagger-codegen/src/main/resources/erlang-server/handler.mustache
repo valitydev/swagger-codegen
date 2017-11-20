@@ -21,9 +21,30 @@
 %% Handlers
 -export([handle_request_json/2]).
 
+{{#operations}}{{#operation}}{{#authMethods}}{{#isApiKey}}
+-callback authorize_api_key
+    (OperationID :: {{operationID}}, ApiKey :: {{packageName}}:api_key(), Opts :: undefined | term()) -> {{packageName}}::auth_result();
+{{/isApiKey}}{{/authMethods}}{{/operation}}{{/operations}}
+    (_, _) -> true.
+
+%% Handler behaviour definition
+{{#operations}}{{#operation}}
+-callback {{operationId}}(Request, Context) ->
+    {ok | error, {Code, Headers, Body}}
+when
+    Request :: #{
+{{#allParams}}        {{^isBodyParam}}'{{baseName}}'{{/isBodyParam}}{{#isBodyParam}}'{{dataType}}'{{/isBodyParam}} {{#required}}:={{/required}}{{^required}}=>{{/required}} {{#isListContainer}}[{{^isBodyParam}}{{>api.type_spec}}{{/isBodyParam}}{{#isBodyParam}}{{packageName}}:body_schema(){{/isBodyParam}}]{{/isListContainer}}{{^isListContainer}}{{^isBodyParam}}{{>api.type_spec}}{{/isBodyParam}}{{#isBodyParam}}{{packageName}}:body_schema(){{/isBodyParam}}{{/isListContainer}}{{^hasMore}}{{/hasMore}}{{#hasMore}},{{/hasMore}}
+{{/allParams}}
+    },
+    Context :: {{packageName}}:request_context(),
+    Code    :: {{#responses}}{{code}}{{#hasMore}} | {{/hasMore}}{{/responses}},
+    Headers :: cowboy:http_headers(),
+    Body    :: {{packageName}}:body_schema() | [{{packageName}}:body_schema()] | undefined.
+{{/operation}}{{/operations}}
+
 -record(state, {
     operation_id  :: {{packageName}}:operation_id(),
-    logic_handler :: module(),
+    logic_handler :: {{packageName}}_router:handeler(),
     context       :: {{packageName}}:request_context()
 }).
 
@@ -77,39 +98,18 @@ allowed_methods(Req, State) ->
         Req   :: cowboy_req:req(),
         State :: state()
     }.
-{{#operations}}{{#operation}}
+{{#operations}}{{#operation}}{{#authMethods}}{{#isApiKey}}
 is_authorized(
     Req0,
     State = #state{
-        operation_id  = '{{operationId}}' = OperationID,
-        logic_handler = LogicHandler,
-        context       = Context
+        operation_id = '{{operationId}}' = OperationID
     }
 ) ->
-{{#authMethods}}
-  {{#isApiKey}}
     From = {{#isKeyInQuery}}qs_val{{/isKeyInQuery}}{{#isKeyInHeader}}header{{/isKeyInHeader}},
-    Result = {{packageName}}_handler_api:authorize_api_key(
-        LogicHandler,
-        OperationID,
-        From,
-        '{{keyParamName}}',
-        Req0
-    ),
-    case Result of
-        {true, AuthContext, Req} ->
-            NewContext = Context#{
-                auth_context => AuthContext
-            },
-            {true, Req, State#state{context = NewContext}};
-        {false, AuthHeader, Req} ->
-            {{false, AuthHeader}, Req, State}
-    end;
-  {{/isApiKey}}
-{{/authMethods}}
-{{/operation}}{{/operations}}
+    authorize_api_key({{packageName}}_handler_api:get_api_key(From, '{{keyParamName}}', Req0));
+{{/isApiKey}}{{/authMethods}}{{/operation}}{{/operations}}
 is_authorized(Req, State) ->
-    {{false, <<"">>}, Req, State}.
+    handle_auth_result(false, Req, State).
 
 -spec content_types_accepted(Req :: cowboy_req:req(), State :: state()) ->
     {
@@ -222,12 +222,26 @@ handle_request_json(
 
 
 %% Internal
+authorize_api_key({undefined, Req}, State) ->
+    handle_auth_result(false, Req, State);
+authorize_api_key({ApiKey, Req}, State = #state{
+    operation_id  = OperationID,
+    logic_handler = LogicHandler
+}) ->
+    {Handler, Opts} = {{packageName}}_utils:get_mod_opts(LogicHandler),
+    handle_auth_result(Handler:authorize_api_key(OperationID, ApiKey, Opts), Req, State).
+
+handle_auth_result(false, Req, State) ->
+    {{false, <<>>}, Req, State};
+handle_auth_result({true, AuthContext}, Req, State = #state{context = Context}) ->
+    {true, Req, State#state{context = Context#{auth_context => AuthContext}}}.
 
 populate_request(OperationID, Req) ->
     {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req).
 
 handle_request(LogicHandler, OperationID, Populated, Context) ->
-    {{packageName}}_logic_handler:handle_request(LogicHandler, OperationID, Populated, Context).
+    {Handler, Opts} = {{packageName}}_utils:get_mod_opts(LogicHandler),
+    Handler:OperationID(Populated, Context).
 
 validate_response(error, _, _) ->
     ok;

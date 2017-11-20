@@ -6,36 +6,38 @@
     Method :: binary() => OperationID :: {{packageName}}:operation_id()
 }.
 
+-type handler() :: module() | {module(), _Opts}.
+
 -type init_opts()  :: {
     Operations   :: operations(),
-    LogicHandler :: atom()
+    LogicHandler :: handler()
 }.
 
 -export_type([init_opts/0]).
 
--spec get_paths(LogicHandler :: atom()) ->  [{'_',[{
+-spec get_paths(LogicHandlers :: #{atom() => handler()}) ->  [{'_',[{
     Path :: string(),
     Handler :: atom(),
     InitOpts :: init_opts()
 }]}].
 
-get_paths(LogicHandler) ->
+get_paths(LogicHandlers) ->
     PreparedPaths = maps:fold(
-        fun(Path, #{operations := Operations, handler := Handler}, Acc) ->
-            [{Path, Handler, Operations} | Acc]
+        fun(Path, #{operations := Operations, handler := Handler, key := Key}, Acc) ->
+            [{Path, Handler, {Key, Operations}} | Acc]
         end,
         [],
         group_paths()
     ),
     [
         {'_',
-            [{P, H, {O, LogicHandler}} || {P, H, O} <- PreparedPaths]
+            [{P, H, {O, maps:get(K, LogicHandlers)}} || {P, H, {K, O}} <- PreparedPaths]
         }
     ].
 
 group_paths() ->
     maps:fold(
-        fun(OperationID, #{path := Path, method := Method, handler := Handler}, Acc) ->
+        fun(OperationID, #{path := Path, method := Method, handler := Handler, key := Key}, Acc) ->
             case maps:find(Path, Acc) of
                 {ok, PathInfo0 = #{operations := Operations0}} ->
                     Operations = Operations0#{Method => OperationID},
@@ -43,7 +45,7 @@ group_paths() ->
                     Acc#{Path => PathInfo};
                 error ->
                     Operations = #{Method => OperationID},
-                    PathInfo = #{handler => Handler, operations => Operations},
+                    PathInfo = #{handler => Handler, operations => Operations, key => Key},
                     Acc#{Path => PathInfo}
             end
         end,
@@ -56,6 +58,7 @@ get_operations() ->
         '{{operationId}}' => #{
             path => "{{basePathWithoutHost}}{{path}}",
             method => <<"{{httpMethod}}">>,
-            handler => '{{classname}}'
+            handler => '{{classname}}',
+            key     => '{{classVarName}}'
         }{{#hasMore}},{{/hasMore}}{{/operation}}{{#hasMore}},{{/hasMore}}{{/operations}}{{/apis}}{{/apiInfo}}
     }.

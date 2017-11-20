@@ -1,3 +1,4 @@
+%% -*- mode: erlang -*-
 -module({{packageName}}_validation).
 
 -export([prepare_request_param/3]).
@@ -52,7 +53,7 @@ prepare_request_param(Rules, Name, Value) ->
 
 -spec validate_response(
     Spec :: response_spec(),
-    Resp :: {{packageName}}:object() | [{{packageName}}:object()] | undefined
+    Resp :: {{packageName}}: | [{{packageName}}:body_schema()] | undefined
 ) ->
     ok |
     {error, Error :: error()}.

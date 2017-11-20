@@ -1,3 +1,4 @@
+%% -*- mode: erlang -*-
 -module({{packageName}}).
 %% Type definitions
 
@@ -10,10 +11,16 @@
 -export_type([api_key/0]).
 -export_type([object/0]).
 
--type auth_context() :: any().
 -type operation_id() :: atom().
+-type auth_context() :: any().
+-type auth_result()  :: false | {true, auth_context()}.
 -type api_key()      :: binary().
--type object()       :: map().
+
+-type body_schema() :: #{binary() => term()}.
+-type object()      :: #{
+    binary() => term(),
+    atom()   => term()
+}.
 
 -type client_peer() :: #{
     ip_address  => IP :: inet:ip_address(),

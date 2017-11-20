@@ -1,7 +1,7 @@
 %% -*- mode: erlang -*-
 -module({{packageName}}_handler_api).
 
--export([authorize_api_key/5]).
+-export([get_api_key/5]).
 -export([determine_peer/1]).
 -export([populate_request/2]).
 -export([validate_response/2]).
@@ -30,35 +30,22 @@
 
 %% API
 
--spec authorize_api_key(
-    LogicHandler :: module(),
-    OperationID  :: {{packageName}}:operation_id(),
+-spec get_api_key(
     From         :: header | qs_val,
     KeyParam     :: iodata() | atom(),
     Req          :: cowboy_req:req()
-)->
-    {true,  Context    :: {{packageName}}:auth_context(), Req ::cowboy_req:req()} |
-    {false, AuthHeader :: binary(),                       Req ::cowboy_req:req()}.
+) ->
+    {\{{packageName}}:api_key(), Req :: cowboy_req:req()} |
+    {undefined                 , Req :: cowboy_req:req()}.
 
-authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0) ->
+get_api_key(From, KeyParam, Req0) ->
     {ok, ApiKey, Req} = get_value(From, KeyParam, Req0),
     case ApiKey of
         undefined ->
             AuthHeader = <<"">>,
-            {false, AuthHeader, Req};
+            {undefined, Req};
         _ ->
-            Result = {{packageName}}_logic_handler:authorize_api_key(
-                LogicHandler,
-                OperationID,
-                ApiKey
-            ),
-            case Result of
-                {true, Context}  ->
-                    {true, Context, Req};
-                false ->
-                    AuthHeader = <<"">>,
-                    {false, AuthHeader, Req}
-            end
+            {ApiKey, Req}
     end.
 
 -spec determine_peer(Req :: cowboy_req:req()) ->
@@ -73,7 +60,7 @@ determine_peer(Req) ->
     {determine_peer_from_header(Value, Peer), Req2}.
 
 -spec populate_request(Spec :: request_spec(), Req :: cowboy_req:req()) ->
-    {ok,    Populated :: {{packageName}}:object(),       Req :: cowboy_req:req()} |
+    {ok,    Populated :: {{packageName}}:object()      , Req :: cowboy_req:req()} |
     {error, Message   :: {{packageName}}:error_reason(), Req :: cowboy_req:req()}.
 
 populate_request(Spec, Req) ->
@@ -81,7 +68,7 @@ populate_request(Spec, Req) ->
 
 -spec validate_response(
     Spec     :: response_spec(),
-    RespBody :: {{packageName}}:object() | [{{packageName}}:object()] | undefined
+    RespBody :: {{packageName}}:body_schema() | [{{packageName}}:body_schema()] | undefined
 ) ->
     ok | no_return().
 
@@ -93,7 +80,12 @@ validate_response(Spec, RespBody) ->
             erlang:error({response_validation_failed, Error, RespBody})
     end.
 
--spec encode_response(Resp :: {{packageName}}_logic_handler:response()) ->
+-spec encode_response(Response) ->
+    Response :: {
+        cowboy:http_status(),
+        cowboy:http_headers(),
+        {{packageName}}:body_schema() | [{{packageName}}:body_schema()] | undefined
+    },
     Encoded :: response().
 
 encode_response(Resp = {_, _, undefined}) ->
@@ -216,7 +208,7 @@ get_value(binding, Name, Req0) ->
     {ok, Value, Req}.
 
 -spec decode_body(Body :: binary()) ->
-    {ok,    Decoded :: {{packageName}}:object() | undefined} |
+    {ok,    Decoded :: map() | undefined} |
     {error, Message :: {{packageName}}:error_reason()}.
 decode_body(<<>>) ->
     {ok, undefined};

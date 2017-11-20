@@ -20,6 +20,11 @@
 -export([join/1]).
 -export([join/2]).
 
+-spec get_handler_and_opts({{package_name}}:handler()) -> {module(), undefined | term()}.
+get_handler_and_opts({Handler, Opts}) ->
+    {Handler, Opts};
+get_handler_and_opts(Handler) ->
+    get_handler_and_opts({Handler, undefined}).
 
 -spec to_binary(iodata() | atom() | number()) -> binary().
 

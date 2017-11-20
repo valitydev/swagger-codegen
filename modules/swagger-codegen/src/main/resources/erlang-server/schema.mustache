@@ -7,7 +7,7 @@
 
 -define(DEFINITIONS, <<"definitions">>).
 
--spec get() -> {{packageName}}:object().
+-spec get() -> map().
 get() ->
     ct_expand:term(enumerate_discriminator_children(maps:with([?DEFINITIONS], get_raw()))).
 
