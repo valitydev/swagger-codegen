@@ -11,6 +11,10 @@
 -export_type([object/0]).
 -export_type([logic_handler/1]).
 -export_type([handler_opts/1]).
+-export_type([status/0]).
+-export_type([headers/0]).
+-export_type([response_body/0]).
+-export_type([response/0]).
 
 -type auth_context()    :: any().
 -type operation_id()    :: atom().
@@ -18,6 +22,10 @@
 -type object()          :: map().
 -type handler_opts(T)   :: {packageName}}_logic_handler:handler_opts(T).
 -type logic_handler(T)  :: {packageName}}_logic_handler:handler(T).
+-type status()          :: cowboy:http_status().
+-type headers()         :: cowboy:http_headers().
+-type response_body()   :: {packageName}}_logic_handler:response_body().
+-type response()        :: {packageName}}_logic_handler:response().
 
 -type client_peer() :: #{
     ip_address  => IP :: inet:ip_address(),

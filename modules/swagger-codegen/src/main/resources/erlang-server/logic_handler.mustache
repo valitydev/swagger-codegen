@@ -4,15 +4,14 @@
 
 -type handler_opts(T)    :: T | undefined.
 -type handler(T)         :: module() | {module(), handler_opts(T)}.
-
--type response() :: {
-    Status  :: cowboy:http_status(),
-    Headers :: cowboy:http_headers(),
-    Body    :: {{packageName}}:object() | [{{packageName}}:object()] | undefined
-}.
+-type status()           :: {packageName}}:status().
+-type headers()          :: {packageName}}:headers().
+-type response_body()    :: {{packageName}}:object() | [{{packageName}}:object()] | undefined.
+-type response()         :: {status(), headers(), response_body()}.
 
 -export_type([handler/1]).
 -export_type([handler_opts/1]).
+-export_type([response_body/0]).
 -export_type([response/0]).
 
 
