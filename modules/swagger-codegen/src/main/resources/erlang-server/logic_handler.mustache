@@ -2,12 +2,17 @@
 
 -export([handle_request/4]).
 
+-type handler_opts(T)    :: T | undefined.
+-type handler(T)         :: module() | {module(), handler_opts(T)}.
+
 -type response() :: {
     Status  :: cowboy:http_status(),
     Headers :: cowboy:http_headers(),
     Body    :: {{packageName}}:object() | [{{packageName}}:object()] | undefined
 }.
 
+-export_type([handler/1]).
+-export_type([handler_opts/1]).
 -export_type([response/0]).
 
 
@@ -23,43 +28,52 @@
     {{#isApiKey}}
 -callback authorize_api_key(
     OperationID :: {{packageName}}:operation_id(),
-    ApiKey      :: {{packageName}}:api_key()
+    ApiKey      :: {{packageName}}:api_key(),
+    Opts        :: handler_opts(_)
 ) ->
     Result :: boolean() | {boolean(), {{packageName}}:auth_context()}.
     {{/isApiKey}}
 {{/authMethods}}
 
-
 -callback handle_request(
     OperationID :: {{packageName}}:operation_id(),
     Request     :: {{packageName}}:object(),
-    Context     :: {{packageName}}:request_context()
+    Context     :: {{packageName}}:request_context(),
+    Opts        :: handler_opts(_)
 ) ->
     {ok | error, response()}.
 
+%% API
+
 -spec handle_request(
-    Handler     :: module(),
+    Handler     :: handler(_),
     OperationID :: {{packageName}}:operation_id(),
     Request     :: {{packageName}}:object(),
     Context     :: {{packageName}}:request_context()
 ) ->
     {ok | error, response()}.
 
-
-%% API
-
 handle_request(Handler, OperationID, Request, Context) ->
-    Handler:handle_request(OperationID, Request, Context).
+    {Module, Opts} = get_mod_opts(Handler),
+    Module:handle_request(OperationID, Request, Context, Opts).
 
 {{#authMethods}}
     {{#isApiKey}}
 -spec authorize_api_key(
-    Handler     :: module(),
+    Handler     :: handler(_),
     OperationID :: {{packageName}}:operation_id(),
     ApiKey      :: {{packageName}}:api_key()
 ) ->
     Result :: false | {true, {{packageName}}:auth_context()}.
 authorize_api_key(Handler, OperationID, ApiKey) ->
-    Handler:authorize_api_key(OperationID, ApiKey).
+    {Module, Opts} = get_mod_opts(Handler),
+    Module:authorize_api_key(OperationID, ApiKey, Opts).
     {{/isApiKey}}
 {{/authMethods}}
+
+%% Internal functions
+
+get_mod_opts(ModOpts= {_, _}) ->
+    ModOpts;
+get_mod_opts(Module) ->
+    {Module, undefined}.
