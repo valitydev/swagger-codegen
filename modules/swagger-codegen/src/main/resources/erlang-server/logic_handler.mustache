@@ -35,16 +35,16 @@
     {ok | error, response()}.
 
 handle_request(Handler, OperationID, Request, Context) ->
-    {Module, Opts} = get_mod_opts(Handler),
-    Module:handle_request(OperationID, Request, Context, Opts).
+    {Module, _Opts} = get_mod_opts(Handler),
+    Module:handle_request(OperationID, Request, Context).
 
 {{#authMethods}}
     {{#isApiKey}}
 -spec authorize_api_key(logic_handler(_), operation_id(), api_key()) ->
     false | {true, auth_context()}.
 authorize_api_key(Handler, OperationID, ApiKey) ->
-    {Module, Opts} = get_mod_opts(Handler),
-    Module:authorize_api_key(OperationID, ApiKey, Opts).
+    {Module, _Opts} = get_mod_opts(Handler),
+    Module:authorize_api_key(OperationID, ApiKey).
     {{/isApiKey}}
 {{/authMethods}}
 
