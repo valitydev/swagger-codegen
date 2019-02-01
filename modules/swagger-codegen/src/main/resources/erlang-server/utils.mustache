@@ -213,5 +213,9 @@ get_body(Req) ->
 
 -spec get_body(Req, cowboy_req:read_body_opts()) -> {ok, binary(), Req} when Req::cowboy_req:req().
 get_body(Req, Opts) ->
-    {_, Body, Req1} =  cowboy_req:read_body(Req, Opts),
-    {ok, Body, Req1}.
+    case cowboy_req:read_body(Req, Opts) of
+        {ok, Body, Req1} ->
+            {ok, Body, Req1};
+        {more, _, _} ->
+            {error, <<"Body is too long">>}
+    end.

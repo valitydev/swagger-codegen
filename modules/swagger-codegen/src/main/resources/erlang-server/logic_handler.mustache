@@ -43,8 +43,8 @@ handle_request(Handler, OperationID, Request, Context) ->
 -spec authorize_api_key(logic_handler(_), operation_id(), api_key()) ->
     false | {true, auth_context()}.
 authorize_api_key(Handler, OperationID, ApiKey) ->
-    {Module, _Opts} = get_mod_opts(Handler),
-    Module:authorize_api_key(OperationID, ApiKey).
+    {Module, Opts} = get_mod_opts(Handler),
+    Module:authorize_api_key(OperationID, ApiKey, Opts).
     {{/isApiKey}}
 {{/authMethods}}
 
