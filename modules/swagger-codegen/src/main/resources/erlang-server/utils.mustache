@@ -213,12 +213,5 @@ get_body(Req) ->
 
 -spec get_body(Req, cowboy_req:read_body_opts()) -> {ok, binary(), Req} when Req::cowboy_req:req().
 get_body(Req, Opts) ->
-    do_get_body(<<>>, Req, Opts).
-
-do_get_body(Body, Req, Opts) ->
-    case cowboy_req:read_body(Req, Opts) of
-        {ok, Body1, Req1} ->
-            {ok, <<Body/binary, Body1/binary>>, Req1};
-        {more, Body1, Req1} ->
-            do_get_body(<<Body/binary, Body1/binary>>, Req1, Opts)
-    end.
+    {_, Body, Req1} =  cowboy_req:read_body(Req, Opts),
+    {ok, Body, Req1}.

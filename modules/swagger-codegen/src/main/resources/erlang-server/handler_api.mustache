@@ -62,9 +62,7 @@ authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0) ->
     end.
 
 -spec determine_peer(Req :: cowboy_req:req()) ->
-    {
-        {ok, Peer :: {{packageName}}:client_peer()} | {error, Reason :: malformed | einval}
-    }.
+        {ok, Peer :: {{packageName}}:client_peer()} | {error, Reason :: malformed | einval}.
 
 determine_peer(Req) ->
     Peer  = cowboy_req:peer(Req),
@@ -199,7 +197,7 @@ get_value(qs_val, Name, Req) ->
         {ok, Value, Req}
     catch
         exit:_ ->
-            {error, <<"Invalid query">>}
+            {ok, undefined, Req}
     end;
 get_value(header, Name, Req) ->
     Headers = cowboy_req:headers(Req),

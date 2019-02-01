@@ -35,8 +35,8 @@
     {ok | error, response()}.
 
 handle_request(Handler, OperationID, Request, Context) ->
-    {Module, _Opts} = get_mod_opts(Handler),
-    Module:handle_request(OperationID, Request, Context).
+    {Module, Opts} = get_mod_opts(Handler),
+    Module:handle_request(OperationID, Request, Context, Opts).
 
 {{#authMethods}}
     {{#isApiKey}}
