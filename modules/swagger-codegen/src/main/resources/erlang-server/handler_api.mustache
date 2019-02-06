@@ -184,20 +184,24 @@ determine_peer_from_header(Value, _Peer) when is_binary(Value) ->
     {error, Message :: {{packageName}}:error_reason(), Req :: cowboy_req:req()}.
 
 get_value(body, _Name, Req0) ->
-    {ok, Body, Req} = {{packageName}}_utils:get_body(Req0),
-    case decode_body(Body) of
-        {ok, Value} ->
-            {ok, Value, Req};
+    case {{packageName}}_utils:get_body(Req0) of
+        {ok, Body, Req} ->
+            case decode_body(Body) of
+                {ok, Value} ->
+                    {ok, Value, Req};
+                {error, Message} ->
+                    {error, Message, Req}
+            end;
         {error, Message} ->
-            {error, Message, Req}
+            {error, Message, Req0}
     end;
 get_value(qs_val, Name, Req) ->
     case cowboy_req:match_qs([{Name, [], undefined}], Req) of
-    #{Name := Value} when Value /= undefined ->
-        {ok, Value, Req};
-    #{Name := undefined} ->
-        {error, <<"Invalid query">>}
-end;
+        #{Name := Value} when Value /= undefined ->
+            {ok, Value, Req};
+        #{Name := undefined} ->
+            {error, <<"Invalid query">>}
+    end;
 get_value(header, Name, Req) ->
     Headers = cowboy_req:headers(Req),
     {ok, maps:get({{packageName}}_utils:to_header(Name), Headers, undefined), Req};
