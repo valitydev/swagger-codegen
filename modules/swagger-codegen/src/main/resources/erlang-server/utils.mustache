@@ -207,11 +207,11 @@ join_(_, [H]) ->
 join_(Delim, [H | T]) ->
     [H, Delim | join_(Delim, T)].
 
--spec get_body(Req) -> {ok, binary(), Req} when Req::cowboy_req:req().
+-spec get_body(Req) -> {ok, binary(), Req} | {error, {{packageName}}:error_reason()} when Req::cowboy_req:req().
 get_body(Req) ->
     get_body(Req, #{}).
 
--spec get_body(Req, cowboy_req:read_body_opts()) -> {ok, binary(), Req} when Req::cowboy_req:req().
+-spec get_body(Req, cowboy_req:read_body_opts()) -> {ok, binary(), Req} | {error, {{packageName}}:error_reason()} when Req::cowboy_req:req().
 get_body(Req, Opts) ->
     case cowboy_req:read_body(Req, Opts) of
         {ok, Body, Req1} ->

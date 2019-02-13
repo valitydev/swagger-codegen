@@ -57,7 +57,7 @@ process_request(Method, BaseUrl, Params, Spec, Opts) ->
 
 -spec process_response(response_spec(), body()) ->
     {ok, object()} |
-    {error, {response_validation_failed, { {{packageName}}_validation:error(), _Response}}}.
+    {error, {response_validation_failed, {{packageName}}_validation:error(), _Response}}.
 process_response(undefined, <<>>) ->
     {ok, #{}};
 process_response(Spec, RespBody) ->
