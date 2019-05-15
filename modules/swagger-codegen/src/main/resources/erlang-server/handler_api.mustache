@@ -200,7 +200,7 @@ get_value(qs_val, Name, Req) ->
         #{Name := Value} ->
             {ok, Value, Req}
     catch
-        exit:_ ->
+        exit:{request_error, _, _} ->
             {error, <<"Invalid query">>}
     end;
 get_value(header, Name, Req) ->
