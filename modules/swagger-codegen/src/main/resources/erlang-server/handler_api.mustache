@@ -196,11 +196,12 @@ get_value(body, _Name, Req0) ->
             {error, Message, Req0}
     end;
 get_value(qs_val, Name, Req) ->
-    case cowboy_req:match_qs([{Name, [], undefined}], Req) of
-        #{Name := Value} when Value /= undefined ->
-            {ok, Value, Req};
-        #{Name := undefined} ->
-            {error, <<"Invalid query">>}
+    try cowboy_req:match_qs([{Name, [], undefined}], Req) of
+        #{Name := Value} ->
+            {ok, Value, Req}
+    catch
+        exit:{request_error, _, _} ->
+            {error, <<"Invalid query">>, Req}
     end;
 get_value(header, Name, Req) ->
     Headers = cowboy_req:headers(Req),
