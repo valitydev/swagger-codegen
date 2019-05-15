@@ -201,7 +201,7 @@ get_value(qs_val, Name, Req) ->
             {ok, Value, Req}
     catch
         exit:{request_error, _, _} ->
-            {error, <<"Invalid query">>}
+            {error, <<"Invalid query">>, Req}
     end;
 get_value(header, Name, Req) ->
     Headers = cowboy_req:headers(Req),
