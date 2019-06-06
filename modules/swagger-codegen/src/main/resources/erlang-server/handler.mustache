@@ -31,8 +31,8 @@
 -type content_type()       :: {binary(), binary(), '*' | [{binary(), binary()}]}.
 -type processed_response() :: {stop, cowboy_req:req(), state()}.
 
--define(DEFAULT_VALIDATION_LEVEL(request), strict).
--define(DEFAULT_VALIDATION_LEVEL(response), strict).
+-define(DEFAULT_REQUEST_VALIDATION_LEVEL, strict).
+-define(DEFAULT_RESPONSE_VALIDATION_LEVEL, strict).
 
 %% Cowboy REST callbacks
 
@@ -48,7 +48,7 @@ init(Req, {Operations, LogicHandler, LogicHandlerOpts}) ->
     State = #state{
         operation_id  = OperationID,
         logic_handler = LogicHandler,
-        logic_handler_opts = LogicHandlerOpts
+        logic_handler_opts = LogicHandlerOpts,
         context       = #{}
     },
     {cowboy_rest, Req, State}.
@@ -234,9 +234,9 @@ handle_request_json(
 %% Internal
 
 get_validation_level(ValidationOpts, request) ->
-    maps:get(request_level, ValidationOpts, ?DEFAULT_VALIDATION_LEVEL(request));
+    maps:get(request_level, ValidationOpts, ?DEFAULT_REQUEST_VALIDATION_LEVEL);
 get_validation_level(ValidationOpts, response) ->
-    maps:get(response_level, ValidationOpts, ?DEFAULT_VALIDATION_LEVEL(response)).
+    maps:get(response_level, ValidationOpts, ?DEFAULT_RESPONSE_VALIDATION_LEVEL).
 
 populate_request(OperationID, Req, ValidationLevel) ->
     {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req, ValidationLevel).

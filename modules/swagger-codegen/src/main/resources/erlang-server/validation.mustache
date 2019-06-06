@@ -26,8 +26,8 @@
 
 -type validation_opts() :: #{
     request_level => validation_level(),
-    response_level => validation_level(),
-}
+    response_level => validation_level()
+}.
 
 -export_type([rule/0]).
 -export_type([response_spec/0]).
@@ -79,9 +79,9 @@ validate_response({DataType, SchemaName}, Body, ValidationLevel) ->
         E = {error, _} -> E;
         _ -> ok
     end;
-validate_response(undefined, undefined) ->
+validate_response(undefined, undefined, _) ->
     ok;
-validate_response(undefined, _) ->
+validate_response(undefined, _, _) ->
     {error, map_error(schema, <<"Must be empty">>)}.
 
 
@@ -179,8 +179,8 @@ map_violated_rule({list, _, _}) ->  wrong_array.
 -spec validate_required_test() -> _.
 
 validate_required_test() ->
-    ?assertEqual(ok, validate({required, true}, 'Name', <<"test">>, request)),
-    ?assertEqual(ok, validate({required, false}, 'Name', <<"test">>, request)),
-    ?assertThrow({wrong_param, _, _}, validate({required, true}, 'Name', undefined, request)).
+    ?assertEqual(ok, validate({required, true}, 'Name', <<"test">>, request, strict)),
+    ?assertEqual(ok, validate({required, false}, 'Name', <<"test">>, request, strict)),
+    ?assertThrow({wrong_param, _, _}, validate({required, true}, 'Name', undefined, request, strict)).
 
 -endif.

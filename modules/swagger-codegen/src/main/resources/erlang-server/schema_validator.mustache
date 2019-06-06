@@ -4,61 +4,46 @@
 -behaviour(jesse_schema_validator).
 
 %% API
+-export([validate/3]).
 -export([validate/4]).
 
 %% Behaviour callbacks
 -export([init_state/1]).
 -export([check_value/3]).
 
-%get_validation_attr_list(none) ->
-%    [];
-%get_validation_attr_list(mild) ->
-%    [
-%        ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
-%        ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
-%        ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES, ?MINPROPERTIES, ?REF, ?DISCRIMINATOR,
-%        ?READ_ONLY
-%    ];
-%get_validation_attr_list(strict) ->
-%    get_validation_attr_list(mild) ++ [
-%        ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM,
-%        ?UNIQUEITEMS, ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?ENUM,
-%        ?FORMAT, ?MULTIPLEOF
-%    ].
-
--define(TYPE,                 <<"type">>). %mild
--define(PROPERTIES,           <<"properties">>). %mild
--define(PATTERNPROPERTIES,    <<"patternProperties">>). %mild
+-define(TYPE,                 <<"type">>).                 %mild
+-define(PROPERTIES,           <<"properties">>).           %mild
+-define(PATTERNPROPERTIES,    <<"patternProperties">>).    %mild
 -define(ADDITIONALPROPERTIES, <<"additionalProperties">>). %mild
--define(ITEMS,                <<"items">>). %mild
--define(ADDITIONALITEMS,      <<"additionalItems">>). %mild
--define(REQUIRED,             <<"required">>). %mild
--define(DEPENDENCIES,         <<"dependencies">>). %mild
--define(MINIMUM,              <<"minimum">>). %strict
--define(MAXIMUM,              <<"maximum">>). %strict
--define(EXCLUSIVEMINIMUM,     <<"exclusiveMinimum">>). %strict
--define(EXCLUSIVEMAXIMUM,     <<"exclusiveMaximum">>). %strict
--define(MINITEMS,             <<"minItems">>). %mild
--define(MAXITEMS,             <<"maxItems">>). %mild
--define(UNIQUEITEMS,          <<"uniqueItems">>). %strict
--define(PATTERN,              <<"pattern">>). %strict
--define(MINLENGTH,            <<"minLength">>). %strict
--define(MAXLENGTH,            <<"maxLength">>). %strict
--define(ENUM,                 <<"enum">>). %strict
--define(ANYOF,                <<"anyOf">>). $mild
--define(ONEOF,                <<"oneOf">>). %mild
--define(NOT,                  <<"not">>). %mild
--define(MULTIPLEOF,           <<"multipleOf">>). %strict
--define(MAXPROPERTIES,        <<"maxProperties">>). %mild
--define(MINPROPERTIES,        <<"minProperties">>). %mild
+-define(ITEMS,                <<"items">>).                %mild
+-define(ADDITIONALITEMS,      <<"additionalItems">>).      %mild
+-define(REQUIRED,             <<"required">>).             %mild
+-define(DEPENDENCIES,         <<"dependencies">>).         %mild
+-define(MINIMUM,              <<"minimum">>).              %strict
+-define(MAXIMUM,              <<"maximum">>).              %strict
+-define(EXCLUSIVEMINIMUM,     <<"exclusiveMinimum">>).     %strict
+-define(EXCLUSIVEMAXIMUM,     <<"exclusiveMaximum">>).     %strict
+-define(MINITEMS,             <<"minItems">>).             %mild
+-define(MAXITEMS,             <<"maxItems">>).             %mild
+-define(UNIQUEITEMS,          <<"uniqueItems">>).          %strict
+-define(PATTERN,              <<"pattern">>).              %strict
+-define(MINLENGTH,            <<"minLength">>).            %strict
+-define(MAXLENGTH,            <<"maxLength">>).            %strict
+-define(ENUM,                 <<"enum">>).                 %strict
+-define(ANYOF,                <<"anyOf">>).                %mild
+-define(ONEOF,                <<"oneOf">>).                %mild
+-define(NOT,                  <<"not">>).                  %mild
+-define(MULTIPLEOF,           <<"multipleOf">>).           %strict
+-define(MAXPROPERTIES,        <<"maxProperties">>).        %mild
+-define(MINPROPERTIES,        <<"minProperties">>).        %mild
 
--define(DISCRIMINATOR, <<"discriminator">>). %mild
--define(ALLOF,         <<"allOf">>). %mild
--define(FORMAT,        <<"format">>). %strict
--define(REF,           <<"$ref">>). %mild
+-define(DISCRIMINATOR, <<"discriminator">>).               %mild
+-define(ALLOF,         <<"allOf">>).                       %mild
+-define(FORMAT,        <<"format">>).                      %strict
+-define(REF,           <<"$ref">>).                        %mild
 -define(DEFINITIONS,   "definitions").
 -define(NOT_FOUND,     not_found).
--define(READ_ONLY,     <<"readOnly">>). %mild
+-define(READ_ONLY,     <<"readOnly">>).                    %mild
 
 -define(DISCR_ERROR(Error), {discriminator_not_valid, Error}).
 -define(READ_ONLY_ERROR, read_only_property_in_request).
@@ -68,7 +53,7 @@
     #{
         refs => [],
         msg_type => msg_type(),
-        validation => {{packageName}}_validation::validation_level()
+        validation => {{packageName}}_validation:validation_level()
     }.
 
 %%
@@ -80,8 +65,17 @@ init_state(Opts) ->
 -spec validate(
     Value   :: {{packageName}}:value(),
     DefName :: {{packageName}}:param_name(),
-    MsgType :: msg_type(),
-    Validation :: {{packageName}}_validation::validation_level()
+    MsgType :: msg_type()
+) ->
+    ok | {error, Error :: {{packageName}}:error_reason()}.
+validate(Value, DefName, MsgType) ->
+    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), strict).
+
+-spec validate(
+    Value      :: {{packageName}}:value(),
+    DefName    :: {{packageName}}:param_name(),
+    MsgType    :: msg_type(),
+    Validation :: {{packageName}}_validation:validation_level()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
 validate(Value, DefName, MsgType, Validation) ->
@@ -104,7 +98,7 @@ validate(Value, DefName, MsgType, Schema, Validation) ->
     State :: jesse_state:state() |
     no_return().
 
-check_value(Valuem, Attr = {AttrName, _}, State) ->
+check_value(Value, Attr = {AttrName, _}, State) ->
     #{validation := Validation} = jesse_state:get_validator_state(State),
     case lists:member(AttrName, get_validation_attr_list(Validation)) of
         true -> do_check_value(Value, Attr, State);
@@ -429,9 +423,12 @@ test_validate(Value, DefName, BinSchema) ->
     test_validate(Value, DefName, BinSchema, response).
 
 test_validate(Value, DefName, BinSchema, MsgType) ->
+    test_validate(Value, DefName, BinSchema, MsgType, strict).
+
+test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefName, MsgType, Schema) of
+    case validate(JsonValue, DefName, MsgType, Schema, Validation) of
         ok             -> ok;
         {error, Error} -> Error
     end.
@@ -535,4 +532,23 @@ ok_read_only_response_test() ->
         \"weight\": 0
     }">>,
     ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA)).
+
+-spec ok_mild_validation_test() -> _.
+ok_mild_validation_test() ->
+    Pet = <<"{
+        \"name\":     \"Babe\",
+        \"petType\":  \"Pig\",
+        \"huntingSkill\": \"wrong\",
+        \"packSize\": 2147483650
+    }">>,
+    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, mild)).
+
+-spec ok_no_validation_test() -> _.
+ok_no_validation_test() ->
+    Pet = <<"{
+        \"name\":          true,
+        \"petType\":       \"Pig\",
+        \"meaningOfLife\": \"42\"
+    }">>,
+    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, none)).
 -endif.

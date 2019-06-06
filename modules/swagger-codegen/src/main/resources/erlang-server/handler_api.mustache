@@ -69,11 +69,11 @@ determine_peer(Req) ->
     Value = cowboy_req:header(<<"x-forwarded-for">>, Req),
     determine_peer_from_header(Value, Peer).
 
--spec populate_request(Spec, Req, ValidationLevel) when
+-spec populate_request(
     Spec :: request_spec(),
     Req :: cowboy_req:req(),
-    ValidationLevel :: {{packageName}}_validation::validation_level()
-->
+    ValidationLevel :: {{packageName}}_validation:validation_level()
+) ->
     {ok,    Populated :: {{packageName}}:object(),       Req :: cowboy_req:req()} |
     {error, Message   :: {{packageName}}:error_reason(), Req :: cowboy_req:req()}.
 
@@ -83,7 +83,7 @@ populate_request(Spec, Req, ValidationLevel) ->
 -spec validate_response(
     Spec     :: response_spec(),
     RespBody :: {{packageName}}:object() | [{{packageName}}:object()] | undefined,
-    ValidationLevel :: {{packageName}}_validation::validation_level()
+    ValidationLevel :: {{packageName}}_validation:validation_level()
 ) ->
     ok | no_return().
 
