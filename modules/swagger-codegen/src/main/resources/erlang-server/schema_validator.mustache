@@ -4,19 +4,61 @@
 -behaviour(jesse_schema_validator).
 
 %% API
--export([validate/3]).
+-export([validate/4]).
 
 %% Behaviour callbacks
 -export([init_state/1]).
 -export([check_value/3]).
 
--define(DISCRIMINATOR, <<"discriminator">>).
--define(ALLOF,         <<"allOf">>).
--define(FORMAT,        <<"format">>).
--define(REF,           <<"$ref">>).
+%get_validation_attr_list(none) ->
+%    [];
+%get_validation_attr_list(mild) ->
+%    [
+%        ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
+%        ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
+%        ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES, ?MINPROPERTIES, ?REF, ?DISCRIMINATOR,
+%        ?READ_ONLY
+%    ];
+%get_validation_attr_list(strict) ->
+%    get_validation_attr_list(mild) ++ [
+%        ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM,
+%        ?UNIQUEITEMS, ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?ENUM,
+%        ?FORMAT, ?MULTIPLEOF
+%    ].
+
+-define(TYPE,                 <<"type">>). %mild
+-define(PROPERTIES,           <<"properties">>). %mild
+-define(PATTERNPROPERTIES,    <<"patternProperties">>). %mild
+-define(ADDITIONALPROPERTIES, <<"additionalProperties">>). %mild
+-define(ITEMS,                <<"items">>). %mild
+-define(ADDITIONALITEMS,      <<"additionalItems">>). %mild
+-define(REQUIRED,             <<"required">>). %mild
+-define(DEPENDENCIES,         <<"dependencies">>). %mild
+-define(MINIMUM,              <<"minimum">>). %strict
+-define(MAXIMUM,              <<"maximum">>). %strict
+-define(EXCLUSIVEMINIMUM,     <<"exclusiveMinimum">>). %strict
+-define(EXCLUSIVEMAXIMUM,     <<"exclusiveMaximum">>). %strict
+-define(MINITEMS,             <<"minItems">>). %mild
+-define(MAXITEMS,             <<"maxItems">>). %mild
+-define(UNIQUEITEMS,          <<"uniqueItems">>). %strict
+-define(PATTERN,              <<"pattern">>). %strict
+-define(MINLENGTH,            <<"minLength">>). %strict
+-define(MAXLENGTH,            <<"maxLength">>). %strict
+-define(ENUM,                 <<"enum">>). %strict
+-define(ANYOF,                <<"anyOf">>). $mild
+-define(ONEOF,                <<"oneOf">>). %mild
+-define(NOT,                  <<"not">>). %mild
+-define(MULTIPLEOF,           <<"multipleOf">>). %strict
+-define(MAXPROPERTIES,        <<"maxProperties">>). %mild
+-define(MINPROPERTIES,        <<"minProperties">>). %mild
+
+-define(DISCRIMINATOR, <<"discriminator">>). %mild
+-define(ALLOF,         <<"allOf">>). %mild
+-define(FORMAT,        <<"format">>). %strict
+-define(REF,           <<"$ref">>). %mild
 -define(DEFINITIONS,   "definitions").
 -define(NOT_FOUND,     not_found).
--define(READ_ONLY,     <<"readOnly">>).
+-define(READ_ONLY,     <<"readOnly">>). %mild
 
 -define(DISCR_ERROR(Error), {discriminator_not_valid, Error}).
 -define(READ_ONLY_ERROR, read_only_property_in_request).
@@ -25,7 +67,8 @@
 -type state() ::
     #{
         refs => [],
-        msg_type => msg_type()
+        msg_type => msg_type(),
+        validation => {{packageName}}_validation::validation_level()
     }.
 
 %%
@@ -37,14 +80,15 @@ init_state(Opts) ->
 -spec validate(
     Value   :: {{packageName}}:value(),
     DefName :: {{packageName}}:param_name(),
-    MsgType :: msg_type()
+    MsgType :: msg_type(),
+    Validation :: {{packageName}}_validation::validation_level()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(Value, DefName, MsgType) ->
-    validate(Value, DefName, MsgType, {{packageName}}_schema:get()).
+validate(Value, DefName, MsgType, Validation) ->
+    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), Validation).
 
-validate(Value, DefName, MsgType, Schema) ->
-    Options = [{validator_opts, #{msg_type => MsgType}} | options()],
+validate(Value, DefName, MsgType, Schema, Validation) ->
+    Options = [{validator_opts, #{msg_type => MsgType, validation => Validation}} | options()],
     case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
         {ok, _} ->
             ok;
@@ -60,23 +104,47 @@ validate(Value, DefName, MsgType, Schema) ->
     State :: jesse_state:state() |
     no_return().
 
-check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
+check_value(Valuem, Attr = {AttrName, _}, State) ->
+    #{validation := Validation} = jesse_state:get_validator_state(State),
+    case lists:member(AttrName, get_validation_attr_list(Validation)) of
+        true -> do_check_value(Value, Attr, State);
+        false -> State
+    end.
+
+get_validation_attr_list(Validation) when is_list(Validation) ->
+    Validation;
+get_validation_attr_list(none) ->
+    [];
+get_validation_attr_list(mild) ->
+    [
+        ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
+        ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
+        ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES, ?MINPROPERTIES, ?REF, ?DISCRIMINATOR,
+        ?READ_ONLY
+    ];
+get_validation_attr_list(strict) ->
+    get_validation_attr_list(mild) ++ [
+        ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM, ?UNIQUEITEMS,
+        ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?ENUM, ?FORMAT, ?MULTIPLEOF
+    ].
+
+do_check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
     case jesse_lib:is_json_object(Value) of
         true  -> validate_discriminator(Value, DiscrField, State);
         false -> State
     end;
-check_value(Value, {?ALLOF, Schemas}, State) ->
+do_check_value(Value, {?ALLOF, Schemas}, State) ->
     check_all_of(Value, Schemas, State);
-check_value(Value, Attr = {?REF, Ref}, State) ->
+do_check_value(Value, Attr = {?REF, Ref}, State) ->
     case is_recursive_ref(Ref, State) of
         true -> State;
         false -> validate_ref(Value, Attr, State)
     end;
-check_value(Value, Format = {?FORMAT, _}, State) ->
+do_check_value(Value, Format = {?FORMAT, _}, State) ->
     validate_format(Value, Format, State);
-check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
+do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
-check_value(Value, Attr, State) ->
+do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
 validate_discriminator(Value, DiscrField, State) when is_binary(DiscrField) ->
