@@ -1,5 +1,6 @@
 -module({{packageName}}_router).
 
+-export([get_paths/1]).
 -export([get_paths/2]).
 -export([get_operation/1]).
 -export([get_operations/0]).
@@ -28,6 +29,15 @@
 
 -export_type([init_opts/0]).
 -export_type([operation_spec/0]).
+
+-spec get_paths(LogicHandler :: atom()) ->  [{'_',[{
+    Path :: string(),
+    Handler :: atom(),
+    InitOpts :: init_opts()
+}]}].
+
+get_paths(LogicHandler) ->
+    get_paths(LogicHandler, #{}).
 
 -spec get_paths(LogicHandler :: atom(), LogicHandlerOpts :: logic_handler_opts()) ->  [{'_',[{
     Path :: string(),

@@ -22,7 +22,7 @@
     wrong_type |
     wrong_array.
 
--type validation_level() :: none | mild | strict.
+-type validation_level() :: none | mild | strict | list(binary()).
 
 -type validation_opts() :: #{
     request_level => validation_level(),
@@ -107,8 +107,6 @@ validate_param(Rules, Name, Value, ValidationLevel) ->
         Rules
     ).
 
-validate(_, _, _, _, none) ->
-    ok;
 validate(Rule = {required, true}, Name, undefined, _MsgType, _ValidationLevel) ->
     report_validation_error(Rule, Name);
 validate({required, _}, _Name, _, _MsgType, _ValidationLevel) ->
@@ -122,8 +120,8 @@ validate(Rule = schema, Name, Value, MsgType, ValidationLevel) ->
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule, Name, Value, _MsgType, ValidationLevel) ->
-    case {{packageName}}_param_validator:validate(Rule, Value, ValidationLevel) of
+validate(Rule, Name, Value, _MsgType, _ValidationLevel) ->
+    case {{packageName}}_param_validator:validate(Rule, Value) of
         ok ->
             ok;
         Ok = {ok, _} ->

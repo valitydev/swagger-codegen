@@ -221,10 +221,10 @@ handle_request_json(
     }
 ) ->
     ValidationOpts = maps:get(validation_opts, LogicHandlerOpts, #{}),
-    case populate_request(OperationID, Req0, get_validation_level(ValidationOpts, request)) of
+    case populate_request(OperationID, Req0, get_validation_level(request, ValidationOpts)) of
         {ok, Populated, Req1} ->
             {Status, Resp} = handle_request(LogicHandler, OperationID, Populated, Context),
-            ok = validate_response(Status, Resp, OperationID, get_validation_level(ValidationOpts, response)),
+            ok = validate_response(Status, Resp, OperationID, get_validation_level(response, ValidationOpts)),
             process_response(ok, encode_response(Resp), Req1, State);
         {error, Reason, Req1} ->
             process_response(error, Reason, Req1, State)
@@ -233,9 +233,9 @@ handle_request_json(
 
 %% Internal
 
-get_validation_level(ValidationOpts, request) ->
+get_validation_level(request, ValidationOpts) ->
     maps:get(request_level, ValidationOpts, ?DEFAULT_REQUEST_VALIDATION_LEVEL);
-get_validation_level(ValidationOpts, response) ->
+get_validation_level(response, ValidationOpts) ->
     maps:get(response_level, ValidationOpts, ?DEFAULT_RESPONSE_VALIDATION_LEVEL).
 
 populate_request(OperationID, Req, ValidationLevel) ->

@@ -130,7 +130,7 @@ populate_request([], Req, Populated, _ValidationLevel) ->
 populate_request([ParamSpec | T], Req0, Populated, ValidationLevel) ->
     case populate_request_param(ParamSpec, Req0, ValidationLevel) of
         {ok, K, V, Req} ->
-            populate_request(T, Req, maps:put(K, V, Populated));
+            populate_request(T, Req, maps:put(K, V, Populated), ValidationLevel);
         Error ->
             Error
     end.
