@@ -11,6 +11,10 @@
 
 -type logic_handler(T) :: {{packageName}}:logic_handler(T).
 
+-type logic_handler_opts() :: #{
+    validation_opts => {{packageName}}_validation:validation_opts()
+}.
+
 -type init_opts() :: {
     Operations   :: operations(),
     LogicHandler :: logic_handler(_),
@@ -23,10 +27,7 @@
     handler := module()
 }.
 
--type logic_handler_opts() :: #{
-    validation_opts => {{packageName}}_validation:validation_opts()
-}.
-
+-export_type([logic_handler_opts/0]).
 -export_type([init_opts/0]).
 -export_type([operation_spec/0]).
 
