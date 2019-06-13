@@ -23,7 +23,7 @@
 -record(state, {
     operation_id  :: {{packageName}}:operation_id(),
     logic_handler :: module(),
-    logic_handler_opts :: {{packageName}}_router:logic_handler_opts(),
+    swag_handler_opts :: {{packageName}}_router:swag_handler_opts(),
     context       :: {{packageName}}:request_context()
 }).
 
@@ -31,15 +31,12 @@
 -type content_type()       :: {binary(), binary(), '*' | [{binary(), binary()}]}.
 -type processed_response() :: {stop, cowboy_req:req(), state()}.
 
--define(DEFAULT_REQUEST_VALIDATION_LEVEL, strict).
--define(DEFAULT_RESPONSE_VALIDATION_LEVEL, strict).
-
 %% Cowboy REST callbacks
 
 -spec init(Req :: cowboy_req:req(), Opts :: {{packageName}}_router:init_opts()) ->
     {cowboy_rest, Req :: cowboy_req:req(), State :: state()}.
 
-init(Req, {Operations, LogicHandler, LogicHandlerOpts}) ->
+init(Req, {Operations, LogicHandler, SwagHandlerOpts}) ->
     Method = cowboy_req:method(Req),
     OperationID    = maps:get(Method, Operations, undefined),
 
@@ -48,7 +45,7 @@ init(Req, {Operations, LogicHandler, LogicHandlerOpts}) ->
     State = #state{
         operation_id  = OperationID,
         logic_handler = LogicHandler,
-        logic_handler_opts = LogicHandlerOpts,
+        swag_handler_opts = SwagHandlerOpts,
         context       = #{}
     },
     {cowboy_rest, Req, State}.
@@ -216,15 +213,15 @@ handle_request_json(
     State = #state{
         operation_id  = OperationID,
         logic_handler = LogicHandler,
-        logic_handler_opts = LogicHandlerOpts,
+        swag_handler_opts = SwagHandlerOpts,
         context       = Context
     }
 ) ->
-    ValidationOpts = maps:get(validation_opts, LogicHandlerOpts, #{}),
-    case populate_request(OperationID, Req0, get_validation_level(request, ValidationOpts)) of
+    ValidationOpts = maps:get(validation_opts, SwagHandlerOpts, #{}),
+    case populate_request(OperationID, Req0, ValidationOpts) of
         {ok, Populated, Req1} ->
             {Status, Resp} = handle_request(LogicHandler, OperationID, Populated, Context),
-            ok = validate_response(Status, Resp, OperationID, get_validation_level(response, ValidationOpts)),
+            ok = validate_response(Status, Resp, OperationID, ValidationOpts),
             process_response(ok, encode_response(Resp), Req1, State);
         {error, Reason, Req1} ->
             process_response(error, Reason, Req1, State)
@@ -233,22 +230,17 @@ handle_request_json(
 
 %% Internal
 
-get_validation_level(request, ValidationOpts) ->
-    maps:get(request_level, ValidationOpts, ?DEFAULT_REQUEST_VALIDATION_LEVEL);
-get_validation_level(response, ValidationOpts) ->
-    maps:get(response_level, ValidationOpts, ?DEFAULT_RESPONSE_VALIDATION_LEVEL).
-
-populate_request(OperationID, Req, ValidationLevel) ->
-    {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req, ValidationLevel).
+populate_request(OperationID, Req, ValidationOpts) ->
+    {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req, ValidationOpts).
 
 handle_request(LogicHandler, OperationID, Populated, Context) ->
     {{packageName}}_logic_handler:handle_request(LogicHandler, OperationID, Populated, Context).
 
 validate_response(error, _, _, _) ->
     ok;
-validate_response(ok, {Code, _Headers, Body}, OperationID, ValidationLevel) ->
+validate_response(ok, {Code, _Headers, Body}, OperationID, ValidationOpts) ->
     Spec = get_response_spec(OperationID, Code),
-    {{packageName}}_handler_api:validate_response(Spec, Body, ValidationLevel).
+    {{packageName}}_handler_api:validate_response(Spec, Body, ValidationOpts).
 
 encode_response(Resp) ->
     {{packageName}}_handler_api:encode_response(Resp).

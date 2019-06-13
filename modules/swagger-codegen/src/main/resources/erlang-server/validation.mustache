@@ -22,11 +22,8 @@
     wrong_type |
     wrong_array.
 
--type validation_level() :: none | mild | strict | list(binary()).
-
 -type validation_opts() :: #{
-    request_level => validation_level(),
-    response_level => validation_level()
+    schema => {{packageName}}_schema_validator:validation_opts()
 }.
 
 -export_type([rule/0]).
@@ -34,7 +31,6 @@
 -export_type([error/0]).
 -export_type([error_type/0]).
 -export_type([validation_opts/0]).
--export_type([validation_level/0]).
 
 -define(catch_error(Block),
     try
@@ -52,28 +48,28 @@
     Rules :: [rule()],
     Name  :: {{packageName}}:param_name(),
     Value :: {{packageName}}:value(),
-    ValidationLevel :: validation_level()
+    ValidationOpts :: validation_opts()
 ) ->
     {ok,    Value :: {{packageName}}:value()} |
     {error, Error :: error()}.
 
-prepare_request_param(Rules, Name, Value, ValidationLevel) ->
-    ?catch_error(validate_param(Rules, Name, Value, ValidationLevel)).
+prepare_request_param(Rules, Name, Value, ValidationOpts) ->
+    ?catch_error(validate_param(Rules, Name, Value, ValidationOpts)).
 
 -spec validate_response(
     Spec :: response_spec(),
     Resp :: {{packageName}}:object() | [{{packageName}}:object()] | undefined,
-    ValidationLevel :: validation_level()
+    ValidationOpts :: validation_opts()
 ) ->
     ok |
     {error, Error :: error()}.
 
-validate_response({DataType, SchemaName}, Body, ValidationLevel) ->
+validate_response({DataType, SchemaName}, Body, ValidationOpts) ->
     Result = case DataType of
         'list' ->
-            ?catch_error([validate(schema, SchemaName, Item, response, ValidationLevel) || Item <- Body]);
+            ?catch_error([validate(schema, SchemaName, Item, response, ValidationOpts) || Item <- Body]);
         _ ->
-            ?catch_error(validate(schema, SchemaName, Body, response, ValidationLevel))
+            ?catch_error(validate(schema, SchemaName, Body, response, ValidationOpts))
     end,
     case Result of
         E = {error, _} -> E;
@@ -91,14 +87,14 @@ validate_response(undefined, _, _) ->
     Rules :: [rule()],
     Name  :: {{packageName}}:param_name(),
     Value :: {{packageName}}:value(),
-    ValidationLevel :: validation_level()
+    ValidationOpts :: validation_opts()
 ) ->
     Prepared :: {{packageName}}:value() | no_return().
 
-validate_param(Rules, Name, Value, ValidationLevel) ->
+validate_param(Rules, Name, Value, ValidationOpts) ->
     lists:foldl(
         fun(Rule, Acc) ->
-            case validate(Rule, Name, Acc, request, ValidationLevel) of
+            case validate(Rule, Name, Acc, request, ValidationOpts) of
                 ok             -> Acc;
                 {ok, Prepared} -> Prepared
             end
@@ -107,20 +103,21 @@ validate_param(Rules, Name, Value, ValidationLevel) ->
         Rules
     ).
 
-validate(Rule = {required, true}, Name, undefined, _MsgType, _ValidationLevel) ->
+validate(Rule = {required, true}, Name, undefined, _MsgType, _ValidationOpts) ->
     report_validation_error(Rule, Name);
-validate({required, _}, _Name, _, _MsgType, _ValidationLevel) ->
+validate({required, _}, _Name, _, _MsgType, _ValidationOpts) ->
     ok;
-validate(_, _Name, undefined, _MsgType, _ValidationLevel) ->
+validate(_, _Name, undefined, _MsgType, _ValidationOpts) ->
     ok;
-validate(Rule = schema, Name, Value, MsgType, ValidationLevel) ->
-    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, ValidationLevel) of
+validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
+    RuleValidationOpts = maps:get(Rule, ValidationOpts, #{}),
+    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, RuleValidationOpts) of
         ok ->
             ok;
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule, Name, Value, _MsgType, _ValidationLevel) ->
+validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
     case {{packageName}}_param_validator:validate(Rule, Value) of
         ok ->
             ok;

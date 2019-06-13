@@ -4,7 +4,6 @@
 -behaviour(jesse_schema_validator).
 
 %% API
--export([validate/3]).
 -export([validate/4]).
 
 %% Behaviour callbacks
@@ -48,13 +47,24 @@
 -define(DISCR_ERROR(Error), {discriminator_not_valid, Error}).
 -define(READ_ONLY_ERROR, read_only_property_in_request).
 
+-type schema_attr() :: binary().
+-type attribute_list() :: list(schema_attr()).
+-type validation_rule() :: none | mild | strict | attribute_list().
+
 -type msg_type() :: request | response.
+-type validation_opts() :: #{
+    msg_type() => validation_rule()
+}.
+
+-export_type([validation_opts/0]).
+
 -type state() ::
     #{
         refs => [],
         msg_type => msg_type(),
-        validation => {{packageName}}_validation:validation_level()
+        attribute_list => attribute_list()
     }.
+
 
 %%
 -spec init_state(Opts :: jesse_state:validator_opts()) -> state().
@@ -63,32 +73,45 @@ init_state(Opts) ->
     Opts#{refs => []}.
 
 -spec validate(
-    Value   :: {{packageName}}:value(),
-    DefName :: {{packageName}}:param_name(),
-    MsgType :: msg_type()
-) ->
-    ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(Value, DefName, MsgType) ->
-    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), strict).
-
--spec validate(
     Value      :: {{packageName}}:value(),
     DefName    :: {{packageName}}:param_name(),
     MsgType    :: msg_type(),
-    Validation :: {{packageName}}_validation:validation_level()
+    ValidationOpts :: validation_opts()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(Value, DefName, MsgType, Validation) ->
-    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), Validation).
+validate(Value, DefName, MsgType, ValidationOpts) ->
+    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
-validate(Value, DefName, MsgType, Schema, Validation) ->
-    Options = [{validator_opts, #{msg_type => MsgType, validation => Validation}} | options()],
+validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
+    AttributeList = get_attribute_list(MsgType, ValidationOpts),
+    Options = [{validator_opts, #{msg_type => MsgType, attribute_list => AttributeList}} | options()],
     case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
         {ok, _} ->
             ok;
         {error, [Error]} ->
             {error, map_error_reason(Error)}
     end.
+
+get_attribute_list(MsgType, ValidationOpts) ->
+    Rule = maps:get(MsgType, ValidationOpts, strict),
+    expand_rule_shortname(Rule).
+
+expand_rule_shortname(Attributes) when is_list(Attributes) ->
+    Attributes;
+expand_rule_shortname(none) ->
+    [];
+expand_rule_shortname(mild) ->
+    [
+        ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
+        ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
+        ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES, ?MINPROPERTIES, ?REF, ?DISCRIMINATOR,
+        ?READ_ONLY
+    ];
+expand_rule_shortname(strict) ->
+    expand_rule_shortname(mild) ++ [
+        ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM, ?UNIQUEITEMS,
+        ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?ENUM, ?FORMAT, ?MULTIPLEOF
+    ].
 
 -spec check_value(
     Value :: any(),
@@ -99,28 +122,11 @@ validate(Value, DefName, MsgType, Schema, Validation) ->
     no_return().
 
 check_value(Value, Attr = {AttrName, _}, State) ->
-    #{validation := Validation} = jesse_state:get_validator_state(State),
-    case lists:member(AttrName, get_validation_attr_list(Validation)) of
+    #{attribute_list := AttributeList} = jesse_state:get_validator_state(State),
+    case lists:member(AttrName, AttributeList) of
         true -> do_check_value(Value, Attr, State);
         false -> State
     end.
-
-get_validation_attr_list(Validation) when is_list(Validation) ->
-    Validation;
-get_validation_attr_list(none) ->
-    [];
-get_validation_attr_list(mild) ->
-    [
-        ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
-        ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
-        ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES, ?MINPROPERTIES, ?REF, ?DISCRIMINATOR,
-        ?READ_ONLY
-    ];
-get_validation_attr_list(strict) ->
-    get_validation_attr_list(mild) ++ [
-        ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM, ?UNIQUEITEMS,
-        ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?ENUM, ?FORMAT, ?MULTIPLEOF
-    ].
 
 do_check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
     case jesse_lib:is_json_object(Value) of
@@ -423,7 +429,7 @@ test_validate(Value, DefName, BinSchema) ->
     test_validate(Value, DefName, BinSchema, response).
 
 test_validate(Value, DefName, BinSchema, MsgType) ->
-    test_validate(Value, DefName, BinSchema, MsgType, strict).
+    test_validate(Value, DefName, BinSchema, MsgType, #{}).
 
 test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
@@ -541,7 +547,7 @@ ok_mild_validation_test() ->
         \"huntingSkill\": \"wrong\",
         \"packSize\": 2147483650
     }">>,
-    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, mild)).
+    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, #{request => mild})).
 
 -spec ok_no_validation_test() -> _.
 ok_no_validation_test() ->
@@ -550,5 +556,5 @@ ok_no_validation_test() ->
         \"petType\":       \"Pig\",
         \"meaningOfLife\": \"42\"
     }">>,
-    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, none)).
+    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, #{request => none})).
 -endif.
