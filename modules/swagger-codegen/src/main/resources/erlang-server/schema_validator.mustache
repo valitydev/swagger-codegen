@@ -47,13 +47,13 @@
 -define(DISCR_ERROR(Error), {discriminator_not_valid, Error}).
 -define(READ_ONLY_ERROR, read_only_property_in_request).
 
--type schema_attr() :: binary().
--type attribute_list() :: list(schema_attr()).
--type validation_rule() :: none | mild | strict | attribute_list().
+-type validation_keyword() :: binary().
+-type validation_keyword_list() :: list(validation_keyword()).
+-type validation_ruleset() :: none | mild | strict | validation_keyword_list().
 
 -type msg_type() :: request | response.
 -type validation_opts() :: #{
-    msg_type() => validation_rule()
+    msg_type() => validation_ruleset()
 }.
 
 -export_type([validation_opts/0]).
@@ -62,7 +62,7 @@
     #{
         refs => [],
         msg_type => msg_type(),
-        attribute_list => attribute_list()
+        validation_keywords => validation_keyword_list()
     }.
 
 
@@ -83,8 +83,8 @@ validate(Value, DefName, MsgType, ValidationOpts) ->
     validate(Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
 validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
-    AttributeList = get_attribute_list(MsgType, ValidationOpts),
-    Options = [{validator_opts, #{msg_type => MsgType, attribute_list => AttributeList}} | options()],
+    ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
+    Options = [{validator_opts, #{msg_type => MsgType, validation_keywords => ValidationKeywords}} | options()],
     case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
         {ok, _} ->
             ok;
@@ -92,22 +92,22 @@ validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
             {error, map_error_reason(Error)}
     end.
 
-get_attribute_list(MsgType, ValidationOpts) ->
-    Rule = maps:get(MsgType, ValidationOpts, strict),
-    expand_rule_shortname(Rule).
+get_validation_keywords(MsgType, ValidationOpts) ->
+    Ruleset = maps:get(MsgType, ValidationOpts, strict),
+    expand_ruleset(Ruleset).
 
-expand_rule_shortname(Attributes) when is_list(Attributes) ->
-    Attributes;
-expand_rule_shortname(none) ->
+expand_ruleset(Keywords) when is_list(Keywords) ->
+    Keywords;
+expand_ruleset(none) ->
     [];
-expand_rule_shortname(mild) ->
+expand_ruleset(mild) ->
     [
         ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
         ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
         ?REF, ?DISCRIMINATOR, ?READ_ONLY
     ];
-expand_rule_shortname(strict) ->
-    expand_rule_shortname(mild) ++ [
+expand_ruleset(strict) ->
+    expand_ruleset(mild) ++ [
         ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM, ?UNIQUEITEMS,
         ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES,
         ?MINPROPERTIES, ?ENUM, ?FORMAT, ?MULTIPLEOF
@@ -122,8 +122,8 @@ expand_rule_shortname(strict) ->
     no_return().
 
 check_value(Value, Attr = {AttrName, _}, State) ->
-    #{attribute_list := AttributeList} = jesse_state:get_validator_state(State),
-    case lists:member(AttrName, AttributeList) of
+    #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
+    case lists:member(AttrName, ValidationKeywords) of
         true -> do_check_value(Value, Attr, State);
         false -> State
     end.

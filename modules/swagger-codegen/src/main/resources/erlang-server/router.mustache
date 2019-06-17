@@ -11,14 +11,14 @@
 
 -type logic_handler(T) :: {{packageName}}:logic_handler(T).
 
--type swag_handler_opts() :: #{
+-type swagger_handler_opts() :: #{
     validation_opts => {{packageName}}_validation:validation_opts()
 }.
 
 -type init_opts() :: {
     Operations      :: operations(),
     LogicHandler    :: logic_handler(_),
-    SwagHandlerOpts :: swag_handler_opts()
+    SwaggerHandlerOpts :: swagger_handler_opts()
 }.
 
 -type operation_spec() :: #{
@@ -27,7 +27,7 @@
     handler := module()
 }.
 
--export_type([swag_handler_opts/0]).
+-export_type([swagger_handler_opts/0]).
 -export_type([init_opts/0]).
 -export_type([operation_spec/0]).
 
@@ -40,13 +40,13 @@
 get_paths(LogicHandler) ->
     get_paths(LogicHandler, #{}).
 
--spec get_paths(LogicHandler :: atom(), SwagHandlerOpts :: swag_handler_opts()) ->  [{'_',[{
+-spec get_paths(LogicHandler :: atom(), SwaggerHandlerOpts :: swagger_handler_opts()) ->  [{'_',[{
     Path :: string(),
     Handler :: atom(),
     InitOpts :: init_opts()
 }]}].
 
-get_paths(LogicHandler, SwagHandlerOpts) ->
+get_paths(LogicHandler, SwaggerHandlerOpts) ->
     PreparedPaths = maps:fold(
         fun(Path, #{operations := Operations, handler := Handler}, Acc) ->
             [{Path, Handler, Operations} | Acc]
@@ -56,7 +56,7 @@ get_paths(LogicHandler, SwagHandlerOpts) ->
     ),
     [
         {'_',
-            [{P, H, {O, LogicHandler, SwagHandlerOpts}} || {P, H, O} <- PreparedPaths]
+            [{P, H, {O, LogicHandler, SwaggerHandlerOpts}} || {P, H, O} <- PreparedPaths]
         }
     ].
 
