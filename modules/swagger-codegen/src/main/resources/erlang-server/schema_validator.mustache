@@ -123,9 +123,17 @@ expand_ruleset(strict) ->
 
 check_value(Value, Attr = {AttrName, _}, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
-    case lists:member(AttrName, ValidationKeywords) of
-        true -> do_check_value(Value, Attr, State);
-        false -> State
+    try
+        do_check_value(Value, Attr, State)
+    catch
+        throw:Error ->
+            case lists:member(AttrName, ValidationKeywords) of
+                true  ->
+                    throw(Error);
+                false ->
+                    ok = log_validation_warning(Error),
+                    State
+            end
     end.
 
 do_check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
@@ -146,6 +154,9 @@ do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
+
+log_validation_warning(Error) ->
+    error_logger:warning_msg("Schema failed validation, but it was ignored: ~p", [Error]).
 
 validate_discriminator(Value, DiscrField, State) when is_binary(DiscrField) ->
     case jesse_json_path:value(DiscrField, Value, ?NOT_FOUND) of
@@ -542,9 +553,8 @@ ok_read_only_response_test() ->
 -spec ok_mild_validation_test() -> _.
 ok_mild_validation_test() ->
     Pet = <<"{
-        \"name\":     \"Babe\",
-        \"petType\":  \"Pig\",
-        \"huntingSkill\": \"wrong\",
+        \"name\":     \"Rex\",
+        \"petType\":  \"Dog\",
         \"packSize\": 2147483650
     }">>,
     ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, #{request => mild})).
@@ -553,7 +563,7 @@ ok_mild_validation_test() ->
 ok_no_validation_test() ->
     Pet = <<"{
         \"name\":          true,
-        \"petType\":       \"Pig\",
+        \"petType\":       \"Cool\",
         \"meaningOfLife\": \"42\"
     }">>,
     ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, #{request => none})).
