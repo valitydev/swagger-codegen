@@ -126,12 +126,12 @@ check_value(Value, Attr = {AttrName, _}, State) ->
     try
         do_check_value(Value, Attr, State)
     catch
-        throw:Error ->
+        throw:Errors ->
             case lists:member(AttrName, ValidationKeywords) of
                 true  ->
-                    throw(Error);
+                    throw(Errors);
                 false ->
-                    ok = log_validation_warning(Error),
+                    ok = log_validation_warnings(Errors),
                     State
             end
     end.
@@ -155,8 +155,14 @@ do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
-log_validation_warning(Error) ->
-    error_logger:warning_msg("Schema failed validation, but it was ignored: ~p", [Error]).
+log_validation_warnings(Errors) ->
+    lists:foreach(
+        fun(Error) ->
+            Reason = map_error_reason(Error),
+            error_logger:warning_msg("Swagger validation failed, but it was ignored: ~p", [Reason])
+        end,
+        Errors
+    ).
 
 validate_discriminator(Value, DiscrField, State) when is_binary(DiscrField) ->
     case jesse_json_path:value(DiscrField, Value, ?NOT_FOUND) of
@@ -256,6 +262,8 @@ validate_read_only(Value, true, State) ->
 options() ->
     [{validator, ?MODULE}, {allowed_errors, 0}].
 
+map_error_reason({'schema_invalid', _Schema, Error}) ->
+    get_error_description(Error, undefined);
 map_error_reason({'data_invalid', _Schema, Error, Data, Path0}) ->
     Path = get_error_path(Path0),
     Description = get_error_description(Error, Data),
@@ -277,6 +285,40 @@ get_error_path(Path0) ->
     Path3 = {{packageName}}_utils:to_binary(Path2),
     <<" Path to item: ", Path3/binary>>.
 
+% Schema errors
+get_error_description(invalid_dependency, _Value) ->
+    <<"Invalid dependency">>;
+get_error_description(schema_invalid, _Value) ->
+    <<"Schema invalid">>;
+get_error_description({schema_not_found, BadRef}, _Value) ->
+    RefBin = list_to_binary(BadRef),
+    <<"Schema not found: ", RefBin/binary>>;
+get_error_description(schema_unsupported, _Value) ->
+    <<"Schema unsupported">>;
+get_error_description(wrong_all_of_schema_array, _Value) ->
+    <<"Wrong \"allOf\" schema array">>;
+get_error_description(wrong_any_of_schema_array, _Value) ->
+    <<"Wrong \"anyOf\" schema array">>;
+get_error_description(wrong_max_properties, _Value) ->
+    <<"Wrong \"maxProperties\" schema field">>;
+get_error_description(wrong_min_properties, _Value) ->
+    <<"Wrong \"minProperties\" schema field">>;
+get_error_description(wrong_multiple_of, _Value) ->
+    <<"Wrong \"multipleOf\" schema field">>;
+get_error_description(wrong_one_of_schema_array, _Value) ->
+    <<"Wrong \"oneOf\" schema array">>;
+get_error_description(wrong_required_array, _Value) ->
+    <<"Wrong \"required\" schema array">>;
+get_error_description({wrong_type_dependency, _}, _Value) ->
+    <<"Wrong type dependency">>;
+get_error_description({wrong_type_items, _}, _Value) ->
+    <<"Wrong type items">>;
+get_error_description(wrong_type_specification, _Value) ->
+    <<"Wrong type specification">>;
+
+% Data errors
+get_error_description(all_schemas_not_valid, _Value) ->
+    <<"Schema rule \"AllOf\" violated">>;
 get_error_description(any_schemas_not_valid, _Value) ->
     <<"Schema rule \"AnyOf\" violated">>;
 get_error_description({missing_dependency, Dependency0}, _Value) ->
