@@ -121,18 +121,15 @@ expand_ruleset(strict) ->
     State :: jesse_state:state() |
     no_return().
 
-check_value(Value, Attr = {AttrName, _}, State) ->
-    #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
+check_value(Value, Attr, State) ->
     try
         do_check_value(Value, Attr, State)
     catch
         throw:Errors ->
-            case lists:member(AttrName, ValidationKeywords) of
-                true  ->
-                    throw(Errors);
-                false ->
-                    ok = log_validation_warnings(Errors),
-                    State
+            Unhandled = handle_check_value_errors(Errors, Attr, Value, State),
+            case length(Unhandled) of
+                0 -> State;
+                _ -> throw(Unhandled)
             end
     end.
 
@@ -155,13 +152,32 @@ do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
-log_validation_warnings(Errors) ->
-    lists:foreach(
+handle_check_value_errors(Errors, Attr, Value, State) ->
+    #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
+    lists:dropwhile(
         fun(Error) ->
-            Reason = map_error_reason(Error),
-            error_logger:warning_msg("Swagger validation failed, but it was ignored: ~p", [Reason])
+            is_error_ignorable(Error, Attr, Value, ValidationKeywords)
         end,
         Errors
+    ).
+
+is_error_ignorable(Error, Attr = {AttrName, _}, Value, ValidationKeywords) ->
+    case lists:member(AttrName, ValidationKeywords) of
+        false -> is_error_handleable(Error, Value, Attr);
+        true -> false
+    end.
+
+is_error_handleable({'data_invalid', _, _, _, _} = Error, Value, Attr) ->
+    _ = log_validation_warning(Error, Value, Attr),
+    true;
+is_error_handleable({'schema_invalid', _, _}, _, _) ->
+    false.
+
+log_validation_warning(Error, Value, Attr) ->
+    Reason = map_error_reason(Error),
+    error_logger:warning_msg(
+        "Swagger validation failed, but it was ignored: ~p. Expected: ~p. Got: ~p.",
+        [Reason, Attr, Value]
     ).
 
 validate_discriminator(Value, DiscrField, State) when is_binary(DiscrField) ->
@@ -262,8 +278,6 @@ validate_read_only(Value, true, State) ->
 options() ->
     [{validator, ?MODULE}, {allowed_errors, 0}].
 
-map_error_reason({'schema_invalid', _Schema, Error}) ->
-    get_error_description(Error, undefined);
 map_error_reason({'data_invalid', _Schema, Error, Data, Path0}) ->
     Path = get_error_path(Path0),
     Description = get_error_description(Error, Data),
@@ -285,38 +299,6 @@ get_error_path(Path0) ->
     Path3 = {{packageName}}_utils:to_binary(Path2),
     <<" Path to item: ", Path3/binary>>.
 
-% Schema errors
-get_error_description(invalid_dependency, _Value) ->
-    <<"Invalid dependency">>;
-get_error_description(schema_invalid, _Value) ->
-    <<"Schema invalid">>;
-get_error_description({schema_not_found, BadRef}, _Value) ->
-    RefBin = list_to_binary(BadRef),
-    <<"Schema not found: ", RefBin/binary>>;
-get_error_description(schema_unsupported, _Value) ->
-    <<"Schema unsupported">>;
-get_error_description(wrong_all_of_schema_array, _Value) ->
-    <<"Wrong \"allOf\" schema array">>;
-get_error_description(wrong_any_of_schema_array, _Value) ->
-    <<"Wrong \"anyOf\" schema array">>;
-get_error_description(wrong_max_properties, _Value) ->
-    <<"Wrong \"maxProperties\" schema field">>;
-get_error_description(wrong_min_properties, _Value) ->
-    <<"Wrong \"minProperties\" schema field">>;
-get_error_description(wrong_multiple_of, _Value) ->
-    <<"Wrong \"multipleOf\" schema field">>;
-get_error_description(wrong_one_of_schema_array, _Value) ->
-    <<"Wrong \"oneOf\" schema array">>;
-get_error_description(wrong_required_array, _Value) ->
-    <<"Wrong \"required\" schema array">>;
-get_error_description({wrong_type_dependency, _}, _Value) ->
-    <<"Wrong type dependency">>;
-get_error_description({wrong_type_items, _}, _Value) ->
-    <<"Wrong type items">>;
-get_error_description(wrong_type_specification, _Value) ->
-    <<"Wrong type specification">>;
-
-% Data errors
 get_error_description(all_schemas_not_valid, _Value) ->
     <<"Schema rule \"AllOf\" violated">>;
 get_error_description(any_schemas_not_valid, _Value) ->
