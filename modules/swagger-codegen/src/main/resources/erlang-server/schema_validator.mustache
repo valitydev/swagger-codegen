@@ -163,21 +163,21 @@ handle_check_value_errors(Errors, Attr, Value, State) ->
 is_error_unignorable(Error, Attr = {Keyword, _}, Value, ValidationKeywords) ->
     case is_keyword_validated(Keyword, ValidationKeywords) of
         true -> true;
-        false -> is_error_type_unsupported(Error, Value, Attr)
+        false -> is_error_reason_unsupported(Error, Value, Attr)
     end.
 
 is_keyword_validated(Keyword, Keywords) ->
     lists:member(Keyword, Keywords).
 
--spec is_error_type_unsupported(Error, Value, Attr) -> boolean() when
+-spec is_error_reason_unsupported(Error, Value, Attr) -> boolean() when
     Error :: jesse_error:error_reason(),
     Value :: any(),
     Attr  :: {binary(), jesse:json_term()}.
 
-is_error_type_unsupported(Error, Value, Attr) when element(1, Error) =:= data_invalid ->
+is_error_reason_unsupported(Error, Value, Attr) when element(1, Error) =:= data_invalid ->
     _ = log_validation_warning(Error, Value, Attr),
     false;
-is_error_type_unsupported(Error, _Value, _Attr) when element(1, Error) =:= schema_invalid ->
+is_error_reason_unsupported(Error, _Value, _Attr) when element(1, Error) =:= schema_invalid ->
     true.
 
 log_validation_warning(Error, Value, Attr) ->
