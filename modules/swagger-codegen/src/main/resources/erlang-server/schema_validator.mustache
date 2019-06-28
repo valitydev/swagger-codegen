@@ -126,10 +126,9 @@ check_value(Value, Attr, State) ->
         do_check_value(Value, Attr, State)
     catch
         throw:Errors ->
-            Unhandled = handle_check_value_errors(Errors, Attr, Value, State),
-            case length(Unhandled) of
-                0 -> State;
-                _ -> throw(Unhandled)
+            case handle_check_value_errors(Errors, Attr, Value, State) of
+                [] -> State;
+                Unhandled -> throw(Unhandled)
             end
     end.
 
@@ -154,24 +153,32 @@ do_check_value(Value, Attr, State) ->
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
-    lists:dropwhile(
+    lists:filter(
         fun(Error) ->
-            is_error_ignorable(Error, Attr, Value, ValidationKeywords)
+            is_error_unignorable(Error, Attr, Value, ValidationKeywords)
         end,
         Errors
     ).
 
-is_error_ignorable(Error, Attr = {AttrName, _}, Value, ValidationKeywords) ->
-    case lists:member(AttrName, ValidationKeywords) of
-        false -> is_error_handleable(Error, Value, Attr);
-        true -> false
+is_error_unignorable(Error, Attr = {Keyword, _}, Value, ValidationKeywords) ->
+    case is_keyword_validated(Keyword, ValidationKeywords) of
+        true -> true;
+        false -> is_error_type_unsupported(Error, Value, Attr)
     end.
 
-is_error_handleable({'data_invalid', _, _, _, _} = Error, Value, Attr) ->
+is_keyword_validated(Keyword, Keywords) ->
+    lists:member(Keyword, Keywords).
+
+-spec is_error_type_unsupported(Error, Value, Attr) -> boolean() when
+    Error :: jesse_error:error_reason(),
+    Value :: any(),
+    Attr  :: {binary(), jesse:json_term()}.
+
+is_error_type_unsupported(Error, Value, Attr) when element(1, Error) =:= data_invalid ->
     _ = log_validation_warning(Error, Value, Attr),
-    true;
-is_error_handleable({'schema_invalid', _, _}, _, _) ->
-    false.
+    false;
+is_error_type_unsupported(Error, _Value, _Attr) when element(1, Error) =:= schema_invalid ->
+    true.
 
 log_validation_warning(Error, Value, Attr) ->
     Reason = map_error_reason(Error),
