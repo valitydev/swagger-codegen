@@ -23,6 +23,7 @@
 -record(state, {
     operation_id  :: {{packageName}}:operation_id(),
     logic_handler :: module(),
+    swagger_handler_opts :: {{packageName}}_router:swagger_handler_opts(),
     context       :: {{packageName}}:request_context()
 }).
 
@@ -35,7 +36,7 @@
 -spec init(Req :: cowboy_req:req(), Opts :: {{packageName}}_router:init_opts()) ->
     {cowboy_rest, Req :: cowboy_req:req(), State :: state()}.
 
-init(Req, {Operations, LogicHandler}) ->
+init(Req, {Operations, LogicHandler, SwaggerHandlerOpts}) ->
     Method = cowboy_req:method(Req),
     OperationID    = maps:get(Method, Operations, undefined),
 
@@ -44,6 +45,7 @@ init(Req, {Operations, LogicHandler}) ->
     State = #state{
         operation_id  = OperationID,
         logic_handler = LogicHandler,
+        swagger_handler_opts = SwaggerHandlerOpts,
         context       = #{}
     },
     {cowboy_rest, Req, State}.
@@ -211,13 +213,15 @@ handle_request_json(
     State = #state{
         operation_id  = OperationID,
         logic_handler = LogicHandler,
+        swagger_handler_opts = SwaggerHandlerOpts,
         context       = Context
     }
 ) ->
-    case populate_request(OperationID, Req0) of
+    ValidationOpts = maps:get(validation_opts, SwaggerHandlerOpts, #{}),
+    case populate_request(OperationID, Req0, ValidationOpts) of
         {ok, Populated, Req1} ->
             {Status, Resp} = handle_request(LogicHandler, OperationID, Populated, Context),
-            ok             = validate_response(Status, Resp, OperationID),
+            ok = validate_response(Status, Resp, OperationID, ValidationOpts),
             process_response(ok, encode_response(Resp), Req1, State);
         {error, Reason, Req1} ->
             process_response(error, Reason, Req1, State)
@@ -226,17 +230,17 @@ handle_request_json(
 
 %% Internal
 
-populate_request(OperationID, Req) ->
-    {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req).
+populate_request(OperationID, Req, ValidationOpts) ->
+    {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req, ValidationOpts).
 
 handle_request(LogicHandler, OperationID, Populated, Context) ->
     {{packageName}}_logic_handler:handle_request(LogicHandler, OperationID, Populated, Context).
 
-validate_response(error, _, _) ->
+validate_response(error, _, _, _) ->
     ok;
-validate_response(ok, {Code, _Headers, Body}, OperationID) ->
+validate_response(ok, {Code, _Headers, Body}, OperationID, ValidationOpts) ->
     Spec = get_response_spec(OperationID, Code),
-    {{packageName}}_handler_api:validate_response(Spec, Body).
+    {{packageName}}_handler_api:validate_response(Spec, Body, ValidationOpts).
 
 encode_response(Resp) ->
     {{packageName}}_handler_api:encode_response(Resp).

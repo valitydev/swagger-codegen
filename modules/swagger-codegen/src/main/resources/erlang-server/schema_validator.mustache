@@ -4,29 +4,67 @@
 -behaviour(jesse_schema_validator).
 
 %% API
--export([validate/3]).
+-export([validate/4]).
 
 %% Behaviour callbacks
 -export([init_state/1]).
 -export([check_value/3]).
 
--define(DISCRIMINATOR, <<"discriminator">>).
--define(ALLOF,         <<"allOf">>).
--define(FORMAT,        <<"format">>).
--define(REF,           <<"$ref">>).
+-define(TYPE,                 <<"type">>).                 %mild
+-define(PROPERTIES,           <<"properties">>).           %mild
+-define(PATTERNPROPERTIES,    <<"patternProperties">>).    %mild
+-define(ADDITIONALPROPERTIES, <<"additionalProperties">>). %mild
+-define(ITEMS,                <<"items">>).                %mild
+-define(ADDITIONALITEMS,      <<"additionalItems">>).      %mild
+-define(REQUIRED,             <<"required">>).             %mild
+-define(DEPENDENCIES,         <<"dependencies">>).         %mild
+-define(MINIMUM,              <<"minimum">>).              %strict
+-define(MAXIMUM,              <<"maximum">>).              %strict
+-define(EXCLUSIVEMINIMUM,     <<"exclusiveMinimum">>).     %strict
+-define(EXCLUSIVEMAXIMUM,     <<"exclusiveMaximum">>).     %strict
+-define(MINITEMS,             <<"minItems">>).             %mild
+-define(MAXITEMS,             <<"maxItems">>).             %mild
+-define(UNIQUEITEMS,          <<"uniqueItems">>).          %strict
+-define(PATTERN,              <<"pattern">>).              %strict
+-define(MINLENGTH,            <<"minLength">>).            %strict
+-define(MAXLENGTH,            <<"maxLength">>).            %strict
+-define(ENUM,                 <<"enum">>).                 %strict
+-define(ANYOF,                <<"anyOf">>).                %mild
+-define(ONEOF,                <<"oneOf">>).                %mild
+-define(NOT,                  <<"not">>).                  %mild
+-define(MULTIPLEOF,           <<"multipleOf">>).           %strict
+-define(MAXPROPERTIES,        <<"maxProperties">>).        %mild
+-define(MINPROPERTIES,        <<"minProperties">>).        %mild
+
+-define(DISCRIMINATOR, <<"discriminator">>).               %mild
+-define(ALLOF,         <<"allOf">>).                       %mild
+-define(FORMAT,        <<"format">>).                      %strict
+-define(REF,           <<"$ref">>).                        %mild
 -define(DEFINITIONS,   "definitions").
 -define(NOT_FOUND,     not_found).
--define(READ_ONLY,     <<"readOnly">>).
+-define(READ_ONLY,     <<"readOnly">>).                    %mild
 
 -define(DISCR_ERROR(Error), {discriminator_not_valid, Error}).
 -define(READ_ONLY_ERROR, read_only_property_in_request).
 
+-type validation_keyword() :: binary().
+-type validation_keyword_list() :: list(validation_keyword()).
+-type validation_ruleset() :: none | mild | strict | validation_keyword_list().
+
 -type msg_type() :: request | response.
+-type validation_opts() :: #{
+    msg_type() => validation_ruleset()
+}.
+
+-export_type([validation_opts/0]).
+
 -type state() ::
     #{
         refs => [],
-        msg_type => msg_type()
+        msg_type => msg_type(),
+        validation_keywords => validation_keyword_list()
     }.
+
 
 %%
 -spec init_state(Opts :: jesse_state:validator_opts()) -> state().
@@ -35,22 +73,45 @@ init_state(Opts) ->
     Opts#{refs => []}.
 
 -spec validate(
-    Value   :: {{packageName}}:value(),
-    DefName :: {{packageName}}:param_name(),
-    MsgType :: msg_type()
+    Value      :: {{packageName}}:value(),
+    DefName    :: {{packageName}}:param_name(),
+    MsgType    :: msg_type(),
+    ValidationOpts :: validation_opts()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(Value, DefName, MsgType) ->
-    validate(Value, DefName, MsgType, {{packageName}}_schema:get()).
+validate(Value, DefName, MsgType, ValidationOpts) ->
+    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
-validate(Value, DefName, MsgType, Schema) ->
-    Options = [{validator_opts, #{msg_type => MsgType}} | options()],
+validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
+    ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
+    Options = [{validator_opts, #{msg_type => MsgType, validation_keywords => ValidationKeywords}} | options()],
     case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
         {ok, _} ->
             ok;
         {error, [Error]} ->
             {error, map_error_reason(Error)}
     end.
+
+get_validation_keywords(MsgType, ValidationOpts) ->
+    Ruleset = maps:get(MsgType, ValidationOpts, strict),
+    expand_ruleset(Ruleset).
+
+expand_ruleset(Keywords) when is_list(Keywords) ->
+    Keywords;
+expand_ruleset(none) ->
+    [];
+expand_ruleset(mild) ->
+    [
+        ?TYPE, ?PROPERTIES, ?PATTERNPROPERTIES, ?ADDITIONALPROPERTIES, ?ITEMS,
+        ?ADDITIONALITEMS, ?REQUIRED, ?DEPENDENCIES, ?ALLOF, ?ANYOF, ?ONEOF, ?NOT,
+        ?REF, ?DISCRIMINATOR, ?READ_ONLY
+    ];
+expand_ruleset(strict) ->
+    expand_ruleset(mild) ++ [
+        ?MINIMUM, ?MAXIMUM, ?EXCLUSIVEMINIMUM, ?EXCLUSIVEMAXIMUM, ?UNIQUEITEMS,
+        ?PATTERN, ?MINLENGTH, ?MAXLENGTH, ?MINITEMS, ?MAXITEMS, ?MAXPROPERTIES,
+        ?MINPROPERTIES, ?ENUM, ?FORMAT, ?MULTIPLEOF
+    ].
 
 -spec check_value(
     Value :: any(),
@@ -60,24 +121,71 @@ validate(Value, DefName, MsgType, Schema) ->
     State :: jesse_state:state() |
     no_return().
 
-check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
+check_value(Value, Attr, State) ->
+    try
+        do_check_value(Value, Attr, State)
+    catch
+        throw:Errors ->
+            case handle_check_value_errors(Errors, Attr, Value, State) of
+                [] -> State;
+                Unhandled -> throw(Unhandled)
+            end
+    end.
+
+do_check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
     case jesse_lib:is_json_object(Value) of
         true  -> validate_discriminator(Value, DiscrField, State);
         false -> State
     end;
-check_value(Value, {?ALLOF, Schemas}, State) ->
+do_check_value(Value, {?ALLOF, Schemas}, State) ->
     check_all_of(Value, Schemas, State);
-check_value(Value, Attr = {?REF, Ref}, State) ->
+do_check_value(Value, Attr = {?REF, Ref}, State) ->
     case is_recursive_ref(Ref, State) of
         true -> State;
         false -> validate_ref(Value, Attr, State)
     end;
-check_value(Value, Format = {?FORMAT, _}, State) ->
+do_check_value(Value, Format = {?FORMAT, _}, State) ->
     validate_format(Value, Format, State);
-check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
+do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
-check_value(Value, Attr, State) ->
+do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
+
+handle_check_value_errors(Errors, Attr, Value, State) ->
+    #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
+    lists:filter(
+        fun(Error) ->
+            is_error_unignorable(Error, Attr, Value, ValidationKeywords)
+        end,
+        Errors
+    ).
+
+is_error_unignorable(Error, Attr = {Keyword, _}, Value, ValidationKeywords) ->
+    case is_keyword_validated(Keyword, ValidationKeywords) of
+        true -> true;
+        false -> is_error_reason_unsupported(Error, Value, Attr)
+    end.
+
+is_keyword_validated(Keyword, Keywords) ->
+    lists:member(Keyword, Keywords).
+
+-spec is_error_reason_unsupported(Error, Value, Attr) -> boolean() when
+    Error :: jesse_error:error_reason(),
+    Value :: any(),
+    Attr  :: {binary(), jesse:json_term()}.
+
+is_error_reason_unsupported(Error, Value, Attr) when element(1, Error) =:= data_invalid ->
+    _ = log_validation_warning(Error, Value, Attr),
+    false;
+is_error_reason_unsupported(Error, _Value, _Attr) when element(1, Error) =:= schema_invalid ->
+    true.
+
+log_validation_warning(Error, Value, Attr) ->
+    Reason = map_error_reason(Error),
+    error_logger:warning_msg(
+        "Swagger validation failed, but it was ignored: ~p. Expected: ~p. Got: ~p.",
+        [Reason, Attr, Value]
+    ).
 
 validate_discriminator(Value, DiscrField, State) when is_binary(DiscrField) ->
     case jesse_json_path:value(DiscrField, Value, ?NOT_FOUND) of
@@ -198,6 +306,8 @@ get_error_path(Path0) ->
     Path3 = {{packageName}}_utils:to_binary(Path2),
     <<" Path to item: ", Path3/binary>>.
 
+get_error_description(all_schemas_not_valid, _Value) ->
+    <<"Schema rule \"AllOf\" violated">>;
 get_error_description(any_schemas_not_valid, _Value) ->
     <<"Schema rule \"AnyOf\" violated">>;
 get_error_description({missing_dependency, Dependency0}, _Value) ->
@@ -361,9 +471,12 @@ test_validate(Value, DefName, BinSchema) ->
     test_validate(Value, DefName, BinSchema, response).
 
 test_validate(Value, DefName, BinSchema, MsgType) ->
+    test_validate(Value, DefName, BinSchema, MsgType, #{}).
+
+test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefName, MsgType, Schema) of
+    case validate(JsonValue, DefName, MsgType, Schema, Validation) of
         ok             -> ok;
         {error, Error} -> Error
     end.
@@ -467,4 +580,22 @@ ok_read_only_response_test() ->
         \"weight\": 0
     }">>,
     ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA)).
+
+-spec ok_mild_validation_test() -> _.
+ok_mild_validation_test() ->
+    Pet = <<"{
+        \"name\":     \"Rex\",
+        \"petType\":  \"Dog\",
+        \"packSize\": 2147483650
+    }">>,
+    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, #{request => mild})).
+
+-spec ok_no_validation_test() -> _.
+ok_no_validation_test() ->
+    Pet = <<"{
+        \"name\":          true,
+        \"petType\":       \"Cool\",
+        \"meaningOfLife\": \"42\"
+    }">>,
+    ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA, request, #{request => none})).
 -endif.
