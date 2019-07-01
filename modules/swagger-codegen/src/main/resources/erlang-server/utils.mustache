@@ -227,7 +227,7 @@ get_body(Req, Opts) ->
 -spec set_operation_id({{packageName}}:operation_id(), Req) -> Req when Req::cowboy_req:req().
 set_operation_id(OperationID, Req) ->
     %% Req::cowboy_req:req() is map in cowboy 2+
-    Req#{?SWAGGER_OPERATION_ID => OperationID).
+    Req#{?SWAGGER_OPERATION_ID => OperationID);
 set_operation_id(OperationID, Req) ->
     cowboy_req:set_meta(?SWAGGER_OPERATION_ID, OperationID, Req).
 
@@ -236,5 +236,5 @@ get_operation_id(Req) when is_map(Req) ->
     %% Req::cowboy_req:req() is map in cowboy 2+
     maps:get(?SWAGGER_OPERATION_ID, Req, undefined);
 get_operation_id(Req) ->
-    {OperationID, _Req} = cowboy_req:meta(?SWAGGER_OPERATION_ID, Req, undefined).
+    {OperationID, _Req} = cowboy_req:meta(?SWAGGER_OPERATION_ID, Req, undefined),
     OperationID.
