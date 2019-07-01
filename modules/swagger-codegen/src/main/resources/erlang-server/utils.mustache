@@ -21,6 +21,10 @@
 -export([join/2]).
 -export([get_body/1]).
 -export([get_body/2]).
+-export([set_operation_id/2]).
+-export([get_operation_id/1]).
+
+-define(SWAGGER_OPERATION_ID, swagger_operation_id).
 
 -spec to_binary(iodata() | atom() | number()) -> binary().
 
@@ -219,3 +223,18 @@ get_body(Req, Opts) ->
         {more, _, _} ->
             {error, <<"Body is too long">>}
     end.
+
+-spec set_operation_id({{packageName}}:operation_id(), Req) -> Req when Req::cowboy_req:req().
+set_operation_id(OperationID, Req) ->
+    %% Req::cowboy_req:req() is map in cowboy 2+
+    Req#{?SWAGGER_OPERATION_ID => OperationID).
+set_operation_id(OperationID, Req) ->
+    cowboy_req:set_meta(?SWAGGER_OPERATION_ID, OperationID, Req).
+
+-spec get_operation_id(Req::cowboy_req:req()) -> {{packageName}}:operation_id() | undefined.
+get_operation_id(Req) when is_map(Req) ->
+    %% Req::cowboy_req:req() is map in cowboy 2+
+    maps:get(?SWAGGER_OPERATION_ID, Req, undefined);
+get_operation_id(Req) ->
+    {OperationID, _Req} = cowboy_req:meta(?SWAGGER_OPERATION_ID, Req, undefined).
+    OperationID.

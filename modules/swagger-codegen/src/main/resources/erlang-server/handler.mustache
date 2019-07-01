@@ -46,7 +46,8 @@ init(Req, {Operations, LogicHandler}) ->
         logic_handler = LogicHandler,
         context       = #{}
     },
-    {cowboy_rest, Req, State}.
+    Req1 = {{packageName}}_utils:set_operation_id(OperationID, Req),
+    {cowboy_rest, Req1, State}.
 
 -spec allowed_methods(Req :: cowboy_req:req(), State :: state()) ->
     {Value :: [binary()], Req :: cowboy_req:req(), State :: state()}.
