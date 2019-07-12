@@ -21,6 +21,7 @@
 -export([join/2]).
 -export([get_body/1]).
 -export([get_body/2]).
+-export([get_operation_id/2]).
 
 -spec to_binary(iodata() | atom() | number()) -> binary().
 
@@ -219,3 +220,8 @@ get_body(Req, Opts) ->
         {more, _, _} ->
             {error, <<"Body is too long">>}
     end.
+
+-spec get_operartion_id(cowboy_req:req(), {{packageName}}_router:init_opts()) -> {{packageName}}:operation_id() | undefined.
+get_operation_id(Req, {Operations, _LogicHandler, _SwaggerHandlerOpts}) ->
+    Method = cowboy_req:method(Req),
+    maps:get(Method, Operations, undefined).

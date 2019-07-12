@@ -36,9 +36,8 @@
 -spec init(Req :: cowboy_req:req(), Opts :: {{packageName}}_router:init_opts()) ->
     {cowboy_rest, Req :: cowboy_req:req(), State :: state()}.
 
-init(Req, {Operations, LogicHandler, SwaggerHandlerOpts}) ->
-    Method = cowboy_req:method(Req),
-    OperationID    = maps:get(Method, Operations, undefined),
+init(Req, {_Operations, LogicHandler, SwaggerHandlerOpts} = InitOpts) ->
+    OperationID    = {{packageName}}_utils:get_operation_id(Req, InitOpts),
 
     error_logger:info_msg("Attempt to process operation: ~p", [OperationID]),
 
