@@ -221,7 +221,7 @@ get_body(Req, Opts) ->
             {error, <<"Body is too long">>}
     end.
 
--spec get_operartion_id(cowboy_req:req(), {{packageName}}_router:init_opts()) -> {{packageName}}:operation_id() | undefined.
+-spec get_operation_id(cowboy_req:req(), {{packageName}}_router:init_opts()) -> {{packageName}}:operation_id() | undefined.
 get_operation_id(Req, {Operations, _LogicHandler, _SwaggerHandlerOpts}) ->
     Method = cowboy_req:method(Req),
     maps:get(Method, Operations, undefined).
