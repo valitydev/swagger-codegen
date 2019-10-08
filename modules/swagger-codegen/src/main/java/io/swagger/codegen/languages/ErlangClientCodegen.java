@@ -131,6 +131,21 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         writeOptional(outputFolder, new SupportingFile("README.mustache", "", "README.md"));
     }
 
+    /**
+     * If the pattern contains "/" in the beginning or in the end
+     * remove those "/" symbols.
+     *
+     * @param pattern the pattern (regular expression)
+     * @return the pattern with delimiter
+     */
+    @Override
+    public String addRegularExpressionDelimiter(String pattern) {
+        if (pattern != null) {
+            return pattern.replaceAll("^/","").replaceAll("/$","");
+        }
+        return pattern;
+    }
+
     @Override
     public String apiPackage() {
         return apiPath;
