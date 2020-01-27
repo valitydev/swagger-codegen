@@ -12,6 +12,7 @@
     {type, 'boolean'} |
     {type, 'date'} |
     {type, 'datetime'} |
+    {type, 'email'} |
     {enum, [atom()]} |
     {max, Max :: number(), Type :: exclusive | inclusive} |
     {min, Min :: number(), Type :: exclusive | inclusive} |
@@ -120,6 +121,14 @@ validate({type, 'datetime'}, Value) ->
             validate_datetime(Value);
         false -> error
     end;
+
+validate({type, 'email'}, Value) when is_binary(Value) ->
+    case email_validator:validate(binary_to_list(Value)) of
+        ok -> ok;
+        fail -> error
+    end;
+validate({type, 'email'}, _Value) ->
+    error;
 
 validate({enum, Values}, Value) ->
     try
@@ -329,6 +338,11 @@ validate_datetime_test() ->
     ?assertEqual(ok, validate({type, 'datetime'}, <<"2014-03-19T18:35:03-04:00">>)),
     ?assertEqual(error, validate({type, 'datetime'}, <<"2014-11-19">>)),
     ?assertEqual(error, validate({type, 'datetime'}, <<"nope">>)).
+
+validate_email_test() ->
+    ?assertEqual(ok, validate({type, 'email'}, <<"me@example.com">>)),
+    ?assertEqual(error, validate({type, 'email'}, <<"m\\e@example.com">>)),
+    ?assertEqual(error, validate({type, 'email'}, <<"nope">>)).
 
 validate_enum_test() ->
     ?assertEqual({ok, sad}, validate({enum, [i, am, sad]} , <<"sad">>)),

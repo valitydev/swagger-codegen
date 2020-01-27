@@ -230,7 +230,8 @@ validate_format(Value, {?FORMAT, Format}, State) when
     Format =:= <<"float">>  orelse
     Format =:= <<"byte">>   orelse
     Format =:= <<"binary">> orelse
-    Format =:= <<"date">>
+    Format =:= <<"date">>   orelse
+    Format =:= <<"email">>
 ->
     case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
@@ -361,8 +362,9 @@ get_error_description(?READ_ONLY_ERROR, _Value) ->
          \"type\":          \"object\",
          \"discriminator\": \"petType\",
          \"properties\": {
-            \"name\":    {\"type\": \"string\"},
-            \"petType\": {\"type\": \"string\"}
+            \"name\":       {\"type\": \"string\"},
+            \"petType\":    {\"type\": \"string\"},
+            \"ownerEmail\": {\"type\": \"string\", \"format\": \"email\"}
          },
          \"required\": [\"name\", \"petType\"]
        },
@@ -498,6 +500,23 @@ ok_discr_simple_test() ->
         \"huntingSkill\": \"adventurous\"
     }">>,
     ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA)).
+
+-spec ok_email_test() -> _.
+ok_email_test() ->
+    Pet0 = <<"{
+        \"name\":         \"Fluffy\",
+        \"petType\":      \"Cat\",
+        \"huntingSkill\": \"adventurous\",
+        \"ownerEmail\":   \"me@example.com\"
+    }">>,
+    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)).
+    Pet1 = <<"{
+        \"name\":         \"Fluffy\",
+        \"petType\":      \"Cat\",
+        \"huntingSkill\": \"adventurous\",
+        \"ownerEmail\":   \"not an email\"
+    }">>,
+    ?assertEqual(expect(wrong_format, [<<"ownerEmail">>]), test_validate(Pet1, ?PET, ?PET_SCHEMA)).
 
 -spec bad_1st_level_discr_simple_test() -> _.
 bad_1st_level_discr_simple_test() ->
