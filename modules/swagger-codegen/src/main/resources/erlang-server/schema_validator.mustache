@@ -153,7 +153,7 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         false -> validate_ref(Value, Attr, State)
     end;
 do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    case call_custom_format_validator(Value, Format, State) of
+    case call_custom_format_validator(Value, Format) of
         ok   ->
             State
         pass ->
@@ -166,10 +166,12 @@ do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
-call_custom_format_validator(Value, {?FORMAT, Format}, State) ->
+call_custom_format_validator(Value, {?FORMAT, Format}) ->
     case maps:get(custom_validator, jesse_state:get_validator_state(State)) of
-        undefined -> pass;
-        Module -> {{packageName}}_custom_validator:validate_format(Module, Value, Format)
+        undefined ->
+            pass;
+        Module ->
+            {{packageName}}_custom_validator:validate_format(Module, Value, Format)
     end.
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
