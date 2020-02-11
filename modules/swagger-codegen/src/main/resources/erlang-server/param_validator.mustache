@@ -123,9 +123,9 @@ validate({type, 'datetime'}, Value) ->
     end;
 
 validate({type, 'email'}, Value) when is_binary(Value) ->
-    case email_validator:validate(binary_to_list(Value)) of
+    case email_validator:validate(Value) of
         ok -> ok;
-        fail -> error
+        {error, _} -> error
     end;
 validate({type, 'email'}, _Value) ->
     error;

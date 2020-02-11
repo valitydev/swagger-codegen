@@ -1,0 +1,15 @@
+-module({{packageName}}_custom_validator).
+-export([validate_format/3]).
+
+-type value() :: binary().
+-type format() :: binary().
+
+-type validator_return() :: ok | pass | {error, term()}.
+
+-callback validate_format(Value :: binary(), Format :: binary()) ->
+    validator_return().
+
+-spec validate_format(module(), value(), format()) ->
+    validator_return().
+validate_format(Module, Value, Format) ->
+    Module:validate_format(Value, Format).

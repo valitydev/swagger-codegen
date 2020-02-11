@@ -53,7 +53,8 @@
 
 -type msg_type() :: request | response.
 -type validation_opts() :: #{
-    msg_type() => validation_ruleset()
+    msg_type() => validation_ruleset(),
+    custom_validator_module => undefined | module()
 }.
 
 -export_type([validation_opts/0]).
@@ -84,7 +85,14 @@ validate(Value, DefName, MsgType, ValidationOpts) ->
 
 validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
     ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
-    Options = [{validator_opts, #{msg_type => MsgType, validation_keywords => ValidationKeywords}} | options()],
+    CustomValidator    = maps:get(custom_validator_module, ValidationOpts, undefined),
+    Options = [
+        {validator_opts, #{
+            msg_type => MsgType,
+            validation_keywords => ValidationKeywords,
+            custom_validator => CustomValidator
+        }} | options()
+    ],
     case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
         {ok, _} ->
             ok;
@@ -145,11 +153,24 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         false -> validate_ref(Value, Attr, State)
     end;
 do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    validate_format(Value, Format, State);
+    case call_custom_format_validator(Value, Format, State) of
+        ok   ->
+            State
+        pass ->
+            validate_format(Value, Format, State)
+        {error, _} ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+    end
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
+
+call_custom_format_validator(Value, {?FORMAT, Format}, State) ->
+    case maps:get(custom_validator, jesse_state:get_validator_state(State)) of
+        undefined -> pass;
+        Module -> {{packageName}}_custom_validator:validate_format(Module, Value, Format)
+    end.
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
