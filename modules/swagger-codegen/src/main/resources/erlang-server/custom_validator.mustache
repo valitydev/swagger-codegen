@@ -1,15 +1,23 @@
 -module({{packageName}}_custom_validator).
 -export([validate_format/3]).
 
--type value() :: binary().
--type format() :: binary().
+-type rule()     :: {{packageName}}_validation::rule().
+-type name()     :: {{packageName}}:param_name().
+-type value()    :: {{packageName}}:value().
+-type msg_type() :: request | response.
+-type opts()     :: {{packageName}}_validation::validation_opts().
 
--type validator_return() :: ok | pass | {error, term()}.
+-type validate_return() :: ok | {ok, term()} | pass | {error, term()}.
 
--callback validate_format(value(), format()) ->
-    validator_return().
+-callback validate_rule(rule(), name(), value(), msg_type()) ->
+    validate_return().
 
--spec validate_format(module(), value(), format()) ->
-    validator_return().
-validate_format(Module, Value, Format) ->
-    Module:validate_format(Value, Format).
+-spec call(rule(), name(), value(), msg_type(), opts()) ->
+    validate_return().
+call(Rule, Name, Value, MsgType, Opts) ->
+    case maps:get(custom_validator, Opts, undefined) of
+        undefined ->
+            pass;
+        Module ->
+            Module:validate_rule(Rule, Name, Value, MsgType)
+    end.

@@ -23,7 +23,8 @@
     wrong_array.
 
 -type validation_opts() :: #{
-    schema => {{packageName}}_schema_validator:validation_opts()
+    schema => {{packageName}}_schema_validator:validation_opts(),
+    custom_validator => module()
 }.
 
 -export_type([rule/0]).
@@ -103,21 +104,35 @@ validate_param(Rules, Name, Value, ValidationOpts) ->
         Rules
     ).
 
-validate(Rule = {required, true}, Name, undefined, _MsgType, _ValidationOpts) ->
+validate(Rule, Name, Value, MsgType, ValidationOpts) ->
+    case call_custom_validator(ValidationOpts, Rule, Name, Value, MsgType) of
+        ok ->
+            ok;
+        Ok = {ok, _} ->
+            Ok;
+        pass ->
+            do_validate(Rule, Name, Value, MsgType, ValidationOpts);
+        {error, Reason} ->
+            report_validation_error(Rule, Name, Reason)
+    end.
+
+call_custom_validator(ValidationOpts, Rule, Name, Value, MsgType) ->
+    {{packageName}}_custom_validator:call(Rule, Name, Value, MsgType, ValidationOpts).
+
+do_validate(Rule = {required, true}, Name, undefined, _MsgType, _ValidationOpts) ->
     report_validation_error(Rule, Name);
-validate({required, _}, _Name, _, _MsgType, _ValidationOpts) ->
+do_validate({required, _}, _Name, _, _MsgType, _ValidationOpts) ->
     ok;
-validate(_, _Name, undefined, _MsgType, _ValidationOpts) ->
+do_validate(_, _Name, undefined, _MsgType, _ValidationOpts) ->
     ok;
-validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
-    RuleValidationOpts = maps:get(Rule, ValidationOpts, #{}),
-    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, RuleValidationOpts) of
+do_validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
+    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, ValidationOpts) of
         ok ->
             ok;
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
+do_validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
     case {{packageName}}_param_validator:validate(Rule, Value) of
         ok ->
             ok;
