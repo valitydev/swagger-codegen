@@ -6,7 +6,7 @@
 
 -type validator_return() :: ok | pass | {error, term()}.
 
--callback validate_format(Value :: binary(), Format :: binary()) ->
+-callback validate_format(value(), format()) ->
     validator_return().
 
 -spec validate_format(module(), value(), format()) ->
