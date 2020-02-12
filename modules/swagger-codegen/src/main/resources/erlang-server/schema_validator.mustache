@@ -165,7 +165,7 @@ do_check_value(Value, Attr, State) ->
 
 call_custom_validator(Value, {?FORMAT, Format}, State) ->
     ValidationOpts = jesse_state:get_validator_state(State),
-    {{packageName}}_custom_validator:call({type, erlang:binary_to_atom(Format, utf8)}, Value, ValidationOpts).
+    {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidationOpts).
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
