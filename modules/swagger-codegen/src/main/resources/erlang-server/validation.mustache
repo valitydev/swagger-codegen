@@ -145,7 +145,8 @@ validate_format(Rule = {'type', Format}, Value, ValidationOpts) ->
     end.
 
 call_custom_validator(ValidationOpts, Format, Value) ->
-    {{packageName}}_custom_validator:validate_format(Format, Value, ValidationOpts).
+    ValidatorModule = maps:get(custom_validator, ValidationOpts, undefined),
+    {{packageName}}_custom_validator:validate_format(Format, Value, ValidatorModule).
 
 -spec report_validation_error(Rule :: rule(), Param :: {{packageName}}:param_name()) ->
     no_return().

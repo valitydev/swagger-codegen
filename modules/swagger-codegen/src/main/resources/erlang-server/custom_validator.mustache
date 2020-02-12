@@ -3,19 +3,15 @@
 
 -type format()   :: atom().
 -type value()    :: {{packageName}}:value().
--type opts()     :: {{packageName}}_validation::validation_opts().
 
 -type validate_return() :: ok | {ok, term()} | pass | {error, term()}.
 
 -callback validate_format(format(), value()) ->
     validate_return().
 
--spec validate_format(format(), value(), opts()) ->
+-spec validate_format(format(), value(), module() | undefined) ->
     validate_return().
-validate_format(Format, Value, Opts) ->
-    case maps:get(custom_validator, Opts, undefined) of
-        undefined ->
-            pass;
-        Module ->
-            Module:validate_format(Format, Value, MsgType)
-    end.
+validate_format(Format, Value, undefined) ->
+    pass;
+validate_format(Format, Value, Module) ->
+    Module:validate_format(Format, Value).

@@ -80,8 +80,8 @@ init_state(Opts) ->
 validate(Value, DefName, MsgType, ValidationOpts) ->
     validate(Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
-validate(Value, DefName, MsgType, Schema, ValidationOpts = #{schema := SchemaOpts}) ->
-    ValidationKeywords = get_validation_keywords(MsgType, SchemaOpts),
+validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
+    ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
     CustomValidator    = maps:get(custom_validator, ValidationOpts, undefined),
     Options = [
         {validator_opts, #{
@@ -98,7 +98,8 @@ validate(Value, DefName, MsgType, Schema, ValidationOpts = #{schema := SchemaOpt
     end.
 
 get_validation_keywords(MsgType, ValidationOpts) ->
-    Ruleset = maps:get(MsgType, ValidationOpts, strict),
+    SchemaOpts = maps:get(schema, ValidationOpts, #{}),
+    Ruleset = maps:get(MsgType, SchemaOpts, strict),
     expand_ruleset(Ruleset).
 
 expand_ruleset(Keywords) when is_list(Keywords) ->
@@ -164,8 +165,8 @@ do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
 call_custom_validator(Value, {?FORMAT, Format}, State) ->
-    ValidationOpts = jesse_state:get_validator_state(State),
-    {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidationOpts).
+    ValidatorModule = maps:get(custom_validator, jesse_state:get_validator_state(State), undefined),
+    {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidatorModule).
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
