@@ -52,10 +52,7 @@
 -type validation_ruleset() :: none | mild | strict | validation_keyword_list().
 
 -type msg_type() :: request | response.
--type validation_opts() :: #{
-    msg_type() => validation_ruleset(),
-    custom_validator_module => undefined | module()
-}.
+-type validation_opts() :: {{packageName}}_validation::validation_opts().
 
 -export_type([validation_opts/0]).
 
