@@ -11,7 +11,7 @@
 
 -spec validate_format(format(), value(), module() | undefined) ->
     validate_return().
-validate_format(Format, Value, undefined) ->
+validate_format(_Format, _Value, undefined) ->
     pass;
 validate_format(Format, Value, Module) ->
     Module:validate_format(Format, Value).

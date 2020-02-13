@@ -23,7 +23,7 @@
     wrong_array.
 
 -type validation_opts() :: #{
-    schema => {{packageName}}_schema_validator:validation_opts(),
+    schema => {{packageName}}_schema_validator:schema_validation_opts(),
     custom_validator => module()
 }.
 
@@ -117,17 +117,17 @@ validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule = {'type', Format}, Name, Value, MsgType, ValidationOpts) ->
+validate(Rule = {'type', _Format}, Name, Value, _MsgType, ValidationOpts) ->
     case validate_format(Rule, Value, ValidationOpts) of
         ok ->
             ok;
         Ok = {ok, _} ->
             Ok;
         error ->
-            report_validation_error(Rule, Name)
+            report_validation_error(Rule, Name);
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
-    end.
+    end;
 validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
     case {{packageName}}_param_validator:validate(Rule, Value) of
         ok ->

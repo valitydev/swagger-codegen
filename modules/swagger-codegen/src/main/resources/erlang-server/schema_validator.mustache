@@ -52,9 +52,10 @@
 -type validation_ruleset() :: none | mild | strict | validation_keyword_list().
 
 -type msg_type() :: request | response.
--type validation_opts() :: {{packageName}}_validation::validation_opts().
+-type schema_validation_opts() :: #{msg_type() => validation_ruleset()}.
+-type validation_opts() :: {{packageName}}_validation:validation_opts().
 
--export_type([validation_opts/0]).
+-export_type([schema_validation_opts/0]).
 
 -type state() ::
     #{
@@ -153,19 +154,19 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
 do_check_value(Value, Format = {?FORMAT, _}, State) ->
     case call_custom_validator(Value, Format, State) of
         ok   ->
-            State
+            State;
         pass ->
-            validate_format(Value, Format, State)
+            validate_format(Value, Format, State);
         {error, _} ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State);
-    end
+            jesse_error:handle_data_invalid(wrong_format, Value, State)
+    end;
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
 call_custom_validator(Value, {?FORMAT, Format}, State) ->
-    ValidatorModule = maps:get(custom_validator, jesse_state:get_validator_state(State), undefined),
+    #{custom_validator := ValidatorModule} = jesse_state:get_validator_state(State),
     {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidatorModule).
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
@@ -495,7 +496,7 @@ test_validate(Value, DefName, BinSchema, MsgType) ->
 test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefName, MsgType, Schema, Validation) of
+    case validate(JsonValue, DefName, MsgType, Schema, #{schema => Validation}) of
         ok             -> ok;
         {error, Error} -> Error
     end.
@@ -526,7 +527,7 @@ ok_email_test() ->
         \"huntingSkill\": \"adventurous\",
         \"ownerEmail\":   \"me@example.com\"
     }">>,
-    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)).
+    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)),
     Pet1 = <<"{
         \"name\":         \"Fluffy\",
         \"petType\":      \"Cat\",
