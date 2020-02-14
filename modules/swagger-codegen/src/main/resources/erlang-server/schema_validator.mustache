@@ -152,7 +152,7 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         false -> validate_ref(Value, Attr, State)
     end;
 do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    case call_custom_validator(Value, Format, State) of
+    case call_custom_format_validator(Value, Format, State) of
         ok   ->
             State;
         pass ->
@@ -165,7 +165,7 @@ do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
-call_custom_validator(Value, {?FORMAT, Format}, State) ->
+call_custom_format_validator(Value, {?FORMAT, Format}, State) ->
     #{custom_validator := ValidatorModule} = jesse_state:get_validator_state(State),
     {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidatorModule).
 
@@ -242,16 +242,24 @@ validate_schema(Value, Schema, State0) ->
             jesse_error:handle_schema_invalid(schema_invalid, State0)
     end.
 
+validate_format(Value, {?FORMAT, Type}, State) when
+    Type =:= <<"float">>  orelse
+    Type =:= <<"byte">>   orelse
+    Type =:= <<"binary">>
+->
+    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
 validate_format(Value, {?FORMAT, Format}, State) when
     Format =:= <<"int32">>  orelse
     Format =:= <<"int64">>  orelse
-    Format =:= <<"float">>  orelse
-    Format =:= <<"byte">>   orelse
-    Format =:= <<"binary">> orelse
     Format =:= <<"date">>   orelse
     Format =:= <<"email">>
 ->
-    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Format, utf8)}, Value) of
+    case {{packageName}}_param_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, State);
         _ ->

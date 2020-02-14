@@ -67,26 +67,28 @@ public class ErlangServerCodegen extends DefaultCodegen implements CodegenConfig
         instantiationTypes.clear();
 
         typeMapping.clear();
-        typeMapping.put("enum", "binary");
-        typeMapping.put("date", "date");
-        typeMapping.put("DateTime", "datetime");
-        typeMapping.put("boolean", "boolean");
-        typeMapping.put("string", "binary");
-        typeMapping.put("char", "binary");
-        typeMapping.put("integer", "int32");
-        typeMapping.put("float", "float");
-        typeMapping.put("long", "int64");
-        typeMapping.put("double", "float");
-        typeMapping.put("array", "list");
-        typeMapping.put("map", "map");
-        typeMapping.put("number", "float");
-        typeMapping.put("List", "list");
-        typeMapping.put("object", "object");
-        typeMapping.put("file", "file");
-        typeMapping.put("binary", "binary");
-        typeMapping.put("ByteArray", "byte");
-        typeMapping.put("UUID", "binary");
-        typeMapping.put("password", "binary");
+
+        typeMapping.put("enum",         "binary");
+        typeMapping.put("date",         "binary");
+        typeMapping.put("DateTime",     "binary");
+        typeMapping.put("string",       "binary");
+        typeMapping.put("char",         "binary");
+        typeMapping.put("binary",       "binary");
+        typeMapping.put("UUID",         "binary");
+        typeMapping.put("password",     "binary");
+        typeMapping.put("boolean",      "boolean");
+        typeMapping.put("integer",      "integer");
+        typeMapping.put("long",         "integer");
+        typeMapping.put("float",        "float");
+        typeMapping.put("double",       "float");
+        typeMapping.put("number",       "float");
+        typeMapping.put("array",        "list");
+        typeMapping.put("List",         "list");
+        typeMapping.put("map",          "map");
+        typeMapping.put("object",       "object");
+        typeMapping.put("file",         "file");
+        typeMapping.put("ByteArray",    "byte");
+
 
         cliOptions.clear();
         cliOptions.add(new CliOption(CodegenConstants.PACKAGE_NAME, "Erlang package name (convention: lowercase).")

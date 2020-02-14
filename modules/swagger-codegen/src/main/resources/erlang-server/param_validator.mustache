@@ -4,15 +4,21 @@
 -export([validate/2]).
 
 -type param_base_rule() ::
-    {type, 'binary'} |
-    {type, 'byte'} |
-    {type, 'int32'} |
-    {type, 'int64'} |
-    {type, 'float'} |
+    {type, 'binary'}  |
+    {type, 'integer'} |
     {type, 'boolean'} |
-    {type, 'date'} |
-    {type, 'datetime'} |
-    {type, 'email'} |
+    {type, 'byte'}    |
+    {type, 'float'}   |
+    %{type, 'list'}    | ?
+    %{type, 'map'}     | ?
+    %{type, 'object'}  | ?
+    %{type, 'file'}    | ?
+    {format, 'int32'}      |
+    {format, 'int64'}      |
+    {format, 'date'}       |
+    {format, 'date-time'}  |
+    {format, 'email'}      |
+    {format, 'ip-address'} |
     {enum, [atom()]} |
     {max, Max :: number(), Type :: exclusive | inclusive} |
     {min, Min :: number(), Type :: exclusive | inclusive} |
@@ -52,33 +58,7 @@ validate({'list', Format, Ruleset}, Value) ->
             error
     end;
 
-validate({type, 'int64'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        ok = validate_between(Value, -9223372036854775808, 922337203685477580),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'int32'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        ok = validate_between(Value, -2147483648, 2147483647),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'float'}, Value) ->
-    try
-        {ok, {{packageName}}_utils:to_float(Value)}
-    catch
-        error:badarg ->
-            error
-    end;
+%% TYPES
 
 validate({type, 'binary'}, Value) ->
     case is_binary(Value) of
@@ -86,16 +66,17 @@ validate({type, 'binary'}, Value) ->
         false -> error
     end;
 
-validate({type, 'byte'}, Value) ->
+validate({type, 'integer'}, Value0) ->
     try
-        validate_base64(Value)
-    catch error:badarg ->
-        error
+        Value = {{packageName}}_utils:to_int(Value0),
+        {ok, Value}
+    catch
+        error:badarg ->
+            error
     end;
 
 validate({type, 'boolean'},  Value) when is_boolean(Value) ->
     {ok, Value};
-
 validate({type, 'boolean'}, Value) ->
     V = {{packageName}}_utils:to_lower(Value),
     try
@@ -108,27 +89,83 @@ validate({type, 'boolean'}, Value) ->
             error
     end;
 
-validate({type, 'date'}, Value) ->
+validate({type, 'byte'}, Value) ->
+    try
+        validate_base64(Value)
+    catch error:badarg ->
+        error
+    end;
+
+validate({type, 'float'}, Value) ->
+    try
+        {ok, {{packageName}}_utils:to_float(Value)}
+    catch
+        error:badarg ->
+            error
+    end;
+
+%% FORMATS
+
+validate({format, 'int64'}, Value0) ->
+    try
+        Value = {{packageName}}_utils:to_int(Value0),
+        ok = validate_between(Value, -9223372036854775808, 922337203685477580),
+        {ok, Value}
+    catch
+        error:badarg ->
+            error
+    end;
+
+validate({format, 'int32'}, Value0) ->
+    try
+        Value = {{packageName}}_utils:to_int(Value0),
+        ok = validate_between(Value, -2147483648, 2147483647),
+        {ok, Value}
+    catch
+        error:badarg ->
+            error
+    end;
+
+validate({format, 'date'}, Value) ->
     case is_binary(Value) of
         true ->
             validate_date(Value);
         false -> error
     end;
 
-validate({type, 'datetime'}, Value) ->
+validate({format, 'date-time'}, Value) ->
     case is_binary(Value) of
         true ->
             validate_datetime(Value);
         false -> error
     end;
 
-validate({type, 'email'}, Value) when is_binary(Value) ->
+validate({format, 'email'}, Value) when is_binary(Value) ->
     case email_validator:validate(Value) of
         ok -> ok;
         {error, _} -> error
     end;
-validate({type, 'email'}, _Value) ->
+validate({format, 'email'}, _Value) ->
     error;
+
+validate({format, 'ip-address'}, Value0) when is_binary(Value0) ->
+    Value = binary_to_list(Value0),
+    case inet_parse:ipv4_address(Value) of
+        {ok, _IPv4Address} ->
+            ok;
+        {error, einval} ->
+            case inet_parse:ipv6_address(Value) of
+                {ok, _IPv6Address} -> ok;
+                {error, einval}    -> error
+            end
+    end;
+validate({format, 'ip-address'}, _Value) ->
+    error;
+
+validate({format, _}, _Value) ->
+    ok;
+
+%%
 
 validate({enum, Values}, Value) ->
     try
@@ -279,6 +316,8 @@ get_split_pattern('pipes') ->
 -include_lib("eunit/include/eunit.hrl").
 
 -spec test() -> _.
+-spec validate_integer_test() -> _.
+-spec validate_ip_address_test() -> _.
 -spec validate_int64_test() -> _.
 -spec validate_int32_test() -> _.
 -spec validate_float_test() -> _.
@@ -296,17 +335,22 @@ get_split_pattern('pipes') ->
 -spec validate_pattern_test() -> _.
 -spec validate_array_test() -> _.
 
+validate_integer_test() ->
+    ?assertEqual({ok, 2}, validate({type, 'integer'}, 2)),
+    ?assertEqual({ok, 6}, validate({type, 'integer'}, <<"6">>)),
+    ?assertEqual(error,   validate({type, 'integer'}, <<"nope">>)).
+
 validate_int64_test() ->
-    ?assertEqual({ok, 2}, validate({type, 'int64'},2)),
-    ?assertEqual({ok, 6}, validate({type, 'int64'},<<"6">>)),
-    ?assertEqual(error, validate({type, 'int64'}, 922337203685477581)),
-    ?assertEqual(error, validate({type, 'int64'},-9223372036854775809)).
+    ?assertEqual({ok, 2}, validate({format, 'int64'},2)),
+    ?assertEqual({ok, 6}, validate({format, 'int64'},<<"6">>)),
+    ?assertEqual(error, validate({format, 'int64'}, 922337203685477581)),
+    ?assertEqual(error, validate({format, 'int64'},-9223372036854775809)).
 
 validate_int32_test() ->
-    ?assertEqual({ok, 6}, validate({type, 'int32'}, 6)),
-    ?assertEqual({ok, 21}, validate({type, 'int32'}, <<"21">>)),
-    ?assertEqual(error, validate({type, 'int32'}, -2147483649)),
-    ?assertEqual(error, validate({type, 'int32'},2147483648)).
+    ?assertEqual({ok, 6}, validate({format, 'int32'}, 6)),
+    ?assertEqual({ok, 21}, validate({format, 'int32'}, <<"21">>)),
+    ?assertEqual(error, validate({format, 'int32'}, -2147483649)),
+    ?assertEqual(error, validate({format, 'int32'},2147483648)).
 
 validate_float_test() ->
     ?assertEqual({ok, 1.9}, validate({type, 'float'}, <<"1.9">>)),
@@ -329,21 +373,27 @@ validate_boolean_test() ->
     ?assertEqual(error, validate({type, 'boolean'}, <<"nope">>)).
 
 validate_date_test() ->
-    ?assertEqual(ok, validate({type, 'date'}, <<"2014-03-19">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"2014-19-03">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"2013">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"nope">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
+    ?assertEqual(ok, validate({format, 'date'}, <<"2014-03-19">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"2014-19-03">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"2013">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"nope">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
 
 validate_datetime_test() ->
-    ?assertEqual(ok, validate({type, 'datetime'}, <<"2014-03-19T18:35:03-04:00">>)),
-    ?assertEqual(error, validate({type, 'datetime'}, <<"2014-11-19">>)),
-    ?assertEqual(error, validate({type, 'datetime'}, <<"nope">>)).
+    ?assertEqual(ok, validate({format, 'date-time'}, <<"2014-03-19T18:35:03-04:00">>)),
+    ?assertEqual(error, validate({format, 'date-time'}, <<"2014-11-19">>)),
+    ?assertEqual(error, validate({format, 'date-time'}, <<"nope">>)).
 
 validate_email_test() ->
-    ?assertEqual(ok, validate({type, 'email'}, <<"me@example.com">>)),
-    ?assertEqual(error, validate({type, 'email'}, <<"m\\e@example.com">>)),
-    ?assertEqual(error, validate({type, 'email'}, <<"nope">>)).
+    ?assertEqual(ok, validate({format, 'email'}, <<"me@example.com">>)),
+    ?assertEqual(error, validate({format, 'email'}, <<"m\\e@example.com">>)),
+    ?assertEqual(error, validate({format, 'email'}, <<"nope">>)).
+
+validate_ip_address_test() ->
+    ?assertEqual(ok, validate({format, 'ip-address'}, <<"127.0.0.1">>)),
+    ?assertEqual(ok, validate({format, 'ip-address'}, <<"::1">>)),
+    ?assertEqual(error, validate({format, 'ip-address'}, <<"127.0.0.0.1">>)),
+    ?assertEqual(error, validate({format, 'ip-address'}, <<"nope">>)).
 
 validate_enum_test() ->
     ?assertEqual({ok, sad}, validate({enum, [i, am, sad]} , <<"sad">>)),
@@ -379,7 +429,7 @@ validate_pattern_test() ->
     ?assertEqual(error, validate({pattern, <<"^[0-9]{2}\/[0-9]{2}$">>}, <<"22/225">>)).
 
 validate_array_test() ->
-    ?assertEqual({ok, [10,11,12]}, validate({list, 'csv', [{type, 'int32'}]}, <<"10,11,12">>)),
-    ?assertEqual(error, validate({list, 'csv', [{type, 'int32'}]}, <<"10,xyi,12">>)).
+    ?assertEqual({ok, [10,11,12]}, validate({list, 'csv', [{format, 'int32'}]}, <<"10,11,12">>)),
+    ?assertEqual(error, validate({list, 'csv', [{format, 'int32'}]}, <<"10,xyi,12">>)).
 
 -endif.

@@ -117,7 +117,7 @@ validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule = {'type', _Format}, Name, Value, _MsgType, ValidationOpts) ->
+validate(Rule = {format, _Format}, Name, Value, _MsgType, ValidationOpts) ->
     case validate_format(Rule, Value, ValidationOpts) of
         ok ->
             ok;
@@ -138,13 +138,13 @@ validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
             report_validation_error(Rule, Name)
     end.
 
-validate_format(Rule = {'type', Format}, Value, ValidationOpts) ->
-    case call_custom_validator(ValidationOpts, Format, Value) of
+validate_format(Rule = {format, Format}, Value, ValidationOpts) ->
+    case call_custom_format_validator(ValidationOpts, Format, Value) of
         pass -> {{packageName}}_param_validator:validate(Rule, Value);
         Result -> Result
     end.
 
-call_custom_validator(ValidationOpts, Format, Value) ->
+call_custom_format_validator(ValidationOpts, Format, Value) ->
     ValidatorModule = maps:get(custom_validator, ValidationOpts, undefined),
     {{packageName}}_custom_validator:validate_format(Format, Value, ValidatorModule).
 
@@ -177,6 +177,7 @@ map_error(Rule, Description) ->
     ErrorType :: error_type().
 
 map_violated_rule({type, _Type})   ->  wrong_type;
+map_violated_rule({format, _Type}) ->  wrong_format;
 map_violated_rule({enum, _})       ->  not_in_range;
 map_violated_rule({max, _, _})     ->  wrong_size;
 map_violated_rule({min, _, _})     ->  wrong_size;
