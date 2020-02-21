@@ -78,15 +78,10 @@ validate({type, 'integer'}, Value0) ->
 validate({type, 'boolean'},  Value) when is_boolean(Value) ->
     {ok, Value};
 validate({type, 'boolean'}, Value) ->
-    V = {{packageName}}_utils:to_lower(Value),
-    try
-        case {{packageName}}_utils:binary_to_existing_atom(V, utf8) of
-            B when is_boolean(B) -> {ok, B};
-            _ -> error
-        end
-    catch
-        error:badarg ->
-            error
+    case {{packageName}}_utils:to_lower(Value) of
+        <<"true">> ->  {ok, true};
+        <<"false">> -> {ok, false};
+        _ -> error
     end;
 
 validate({type, 'byte'}, Value) ->
@@ -150,19 +145,17 @@ validate({format, 'email'}, _Value) ->
 
 validate({format, 'ip-address'}, Value0) when is_binary(Value0) ->
     Value = binary_to_list(Value0),
-    case inet_parse:ipv4_address(Value) of
-        {ok, _IPv4Address} ->
+    case inet:parse_strict_address(Value) of
+        {ok, _IPAddress} ->
             ok;
         {error, einval} ->
-            case inet_parse:ipv6_address(Value) of
-                {ok, _IPv6Address} -> ok;
-                {error, einval}    -> error
-            end
+            error
     end;
 validate({format, 'ip-address'}, _Value) ->
     error;
 
-validate({format, _}, _Value) ->
+validate({format, Unknown}, _Value) ->
+    _ = error_logger:warning_msg("Attempted to validate unknown format ~p, ignored.", [Unknown]),
     ok;
 
 %%
