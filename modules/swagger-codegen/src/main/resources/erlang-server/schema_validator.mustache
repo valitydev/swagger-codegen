@@ -52,11 +52,10 @@
 -type validation_ruleset() :: none | mild | strict | validation_keyword_list().
 
 -type msg_type() :: request | response.
--type validation_opts() :: #{
-    msg_type() => validation_ruleset()
-}.
+-type schema_validation_opts() :: #{msg_type() => validation_ruleset()}.
+-type validation_opts() :: {{packageName}}_validation:validation_opts().
 
--export_type([validation_opts/0]).
+-export_type([schema_validation_opts/0]).
 
 -type state() ::
     #{
@@ -84,7 +83,14 @@ validate(Value, DefName, MsgType, ValidationOpts) ->
 
 validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
     ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
-    Options = [{validator_opts, #{msg_type => MsgType, validation_keywords => ValidationKeywords}} | options()],
+    CustomValidator    = maps:get(custom_validator, ValidationOpts, undefined),
+    Options = [
+        {validator_opts, #{
+            msg_type => MsgType,
+            validation_keywords => ValidationKeywords,
+            custom_validator => CustomValidator
+        }} | options()
+    ],
     case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
         {ok, _} ->
             ok;
@@ -93,7 +99,8 @@ validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
     end.
 
 get_validation_keywords(MsgType, ValidationOpts) ->
-    Ruleset = maps:get(MsgType, ValidationOpts, strict),
+    SchemaOpts = maps:get(schema, ValidationOpts, #{}),
+    Ruleset = maps:get(MsgType, SchemaOpts, strict),
     expand_ruleset(Ruleset).
 
 expand_ruleset(Keywords) when is_list(Keywords) ->
@@ -145,11 +152,22 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         false -> validate_ref(Value, Attr, State)
     end;
 do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    validate_format(Value, Format, State);
+    case call_custom_format_validator(Value, Format, State) of
+        ok   ->
+            State;
+        pass ->
+            validate_format(Value, Format, State);
+        {error, _} ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State)
+    end;
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
+
+call_custom_format_validator(Value, {?FORMAT, Format}, State) ->
+    #{custom_validator := ValidatorModule} = jesse_state:get_validator_state(State),
+    {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidatorModule).
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
@@ -224,15 +242,24 @@ validate_schema(Value, Schema, State0) ->
             jesse_error:handle_schema_invalid(schema_invalid, State0)
     end.
 
+validate_format(Value, {?FORMAT, Type}, State) when
+    Type =:= <<"float">>  orelse
+    Type =:= <<"byte">>   orelse
+    Type =:= <<"binary">>
+->
+    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
 validate_format(Value, {?FORMAT, Format}, State) when
     Format =:= <<"int32">>  orelse
     Format =:= <<"int64">>  orelse
-    Format =:= <<"float">>  orelse
-    Format =:= <<"byte">>   orelse
-    Format =:= <<"binary">> orelse
-    Format =:= <<"date">>
+    Format =:= <<"date">>   orelse
+    Format =:= <<"email">>
 ->
-    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Format, utf8)}, Value) of
+    case {{packageName}}_param_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, State);
         _ ->
@@ -361,8 +388,9 @@ get_error_description(?READ_ONLY_ERROR, _Value) ->
          \"type\":          \"object\",
          \"discriminator\": \"petType\",
          \"properties\": {
-            \"name\":    {\"type\": \"string\"},
-            \"petType\": {\"type\": \"string\"}
+            \"name\":       {\"type\": \"string\"},
+            \"petType\":    {\"type\": \"string\"},
+            \"ownerEmail\": {\"type\": \"string\", \"format\": \"email\"}
          },
          \"required\": [\"name\", \"petType\"]
        },
@@ -476,7 +504,7 @@ test_validate(Value, DefName, BinSchema, MsgType) ->
 test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefName, MsgType, Schema, Validation) of
+    case validate(JsonValue, DefName, MsgType, Schema, #{schema => Validation}) of
         ok             -> ok;
         {error, Error} -> Error
     end.
@@ -498,6 +526,23 @@ ok_discr_simple_test() ->
         \"huntingSkill\": \"adventurous\"
     }">>,
     ?assertEqual(ok, test_validate(Pet, ?PET, ?PET_SCHEMA)).
+
+-spec ok_email_test() -> _.
+ok_email_test() ->
+    Pet0 = <<"{
+        \"name\":         \"Fluffy\",
+        \"petType\":      \"Cat\",
+        \"huntingSkill\": \"adventurous\",
+        \"ownerEmail\":   \"me@example.com\"
+    }">>,
+    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)),
+    Pet1 = <<"{
+        \"name\":         \"Fluffy\",
+        \"petType\":      \"Cat\",
+        \"huntingSkill\": \"adventurous\",
+        \"ownerEmail\":   \"not an email\"
+    }">>,
+    ?assertEqual(expect(wrong_format, [<<"ownerEmail">>]), test_validate(Pet1, ?PET, ?PET_SCHEMA)).
 
 -spec bad_1st_level_discr_simple_test() -> _.
 bad_1st_level_discr_simple_test() ->

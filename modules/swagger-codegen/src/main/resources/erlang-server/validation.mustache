@@ -23,7 +23,8 @@
     wrong_array.
 
 -type validation_opts() :: #{
-    schema => {{packageName}}_schema_validator:validation_opts()
+    schema => {{packageName}}_schema_validator:schema_validation_opts(),
+    custom_validator => module()
 }.
 
 -export_type([rule/0]).
@@ -110,10 +111,20 @@ validate({required, _}, _Name, _, _MsgType, _ValidationOpts) ->
 validate(_, _Name, undefined, _MsgType, _ValidationOpts) ->
     ok;
 validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
-    RuleValidationOpts = maps:get(Rule, ValidationOpts, #{}),
-    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, RuleValidationOpts) of
+    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, ValidationOpts) of
         ok ->
             ok;
+        {error, Reason} ->
+            report_validation_error(Rule, Name, Reason)
+    end;
+validate(Rule = {format, _Format}, Name, Value, _MsgType, ValidationOpts) ->
+    case validate_format(Rule, Value, ValidationOpts) of
+        ok ->
+            ok;
+        Ok = {ok, _} ->
+            Ok;
+        error ->
+            report_validation_error(Rule, Name);
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
@@ -126,6 +137,16 @@ validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
         error ->
             report_validation_error(Rule, Name)
     end.
+
+validate_format(Rule = {format, Format}, Value, ValidationOpts) ->
+    case call_custom_format_validator(ValidationOpts, Format, Value) of
+        pass -> {{packageName}}_param_validator:validate(Rule, Value);
+        Result -> Result
+    end.
+
+call_custom_format_validator(ValidationOpts, Format, Value) ->
+    ValidatorModule = maps:get(custom_validator, ValidationOpts, undefined),
+    {{packageName}}_custom_validator:validate_format(Format, Value, ValidatorModule).
 
 -spec report_validation_error(Rule :: rule(), Param :: {{packageName}}:param_name()) ->
     no_return().
@@ -156,6 +177,7 @@ map_error(Rule, Description) ->
     ErrorType :: error_type().
 
 map_violated_rule({type, _Type})   ->  wrong_type;
+map_violated_rule({format, _Type}) ->  wrong_format;
 map_violated_rule({enum, _})       ->  not_in_range;
 map_violated_rule({max, _, _})     ->  wrong_size;
 map_violated_rule({min, _, _})     ->  wrong_size;

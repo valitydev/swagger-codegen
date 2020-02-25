@@ -255,11 +255,16 @@ validate_headers(_, Req) ->
     Spec :: {{packageName}}_handler_api:request_spec() | no_return().
 
 {{#operations}}{{#operation}}
+{{!
+    NOTICE: Datatype definition was taken out of api.param_info partial since `items` context makes it impossible
+    to check if we are currently in a list container. This information is required to get the data type from the correct
+    source (`datatype` field of class `CodegenProperty`, instead of `dataType` field of class `CodegenParameter`)
+}}
 get_request_spec('{{operationId}}') ->
     [
         {{#allParams}}{{^isBodyParam}}{'{{baseName}}'{{/isBodyParam}}{{#isBodyParam}}{'{{dataType}}'{{/isBodyParam}}, #{
             source => {{#isQueryParam}}qs_val{{/isQueryParam}}{{#isPathParam}}binding{{/isPathParam}}{{#isHeaderParam}}header{{/isHeaderParam}}{{#isBodyParam}}body{{/isBodyParam}},
-            rules  => [{{^isBodyParam}}{{#isListContainer}}{list, '{{collectionFormat}}', {{#items}}[{{>api.param_info}}]{{/items}}}, {{/isListContainer}}{{>api.param_info}}, {{/isBodyParam}}{{#isBodyParam}}schema, {{/isBodyParam}}{required, {{#required}}true{{/required}}{{^required}}false{{/required}}}]
+            rules  => [{{^isBodyParam}}{{#isListContainer}}{list, '{{collectionFormat}}', {{#items}}[{{#datatype}}{type, '{{datatype}}'}, {{/datatype}}{{>api.param_info}}]{{/items}}}, {{/isListContainer}}{{^isListContainer}}{{#dataType}}{type, '{{dataType}}'}, {{/dataType}}{{/isListContainer}}{{>api.param_info}}, {{/isBodyParam}}{{#isBodyParam}}schema, {{/isBodyParam}}{required, {{#required}}true{{/required}}{{^required}}false{{/required}}}]
         }}{{#hasMore}},
         {{/hasMore}}{{/allParams}}
     ];
