@@ -6,6 +6,7 @@
 
 -type validate_return() :: ok | {ok, term()} | pass | {error, term()}.
 
+%% @TODO: Right now this callback won't be called when verifying formats of list members
 -callback validate_format(format(), value()) ->
     validate_return().
 
