@@ -174,7 +174,7 @@ validate({min_length, MinLength}, Value) ->
     end;
 
 validate({pattern, Pattern}, Value) ->
-    {ok, MP} = re:compile(Pattern),
+    {ok, MP} = re:compile(Pattern, [unicode, ucp]),
     case re:run(Value, MP) of
         {match, _} -> ok;
         _ -> error
