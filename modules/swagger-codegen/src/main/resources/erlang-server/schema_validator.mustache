@@ -46,6 +46,7 @@
 
 -define(DISCR_ERROR(Error), {discriminator_not_valid, Error}).
 -define(READ_ONLY_ERROR, read_only_property_in_request).
+-define(NO_MATCH_ERROR, no_match).
 
 -type validation_keyword() :: binary().
 -type validation_keyword_list() :: list(validation_keyword()).
@@ -162,6 +163,8 @@ do_check_value(Value, Format = {?FORMAT, _}, State) ->
     end;
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
+do_check_value(Value, Pattern = {?PATTERN, _}, State) ->
+    validate_pattern(Value, Pattern, State);
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
@@ -307,6 +310,14 @@ validate_read_only(Value, true, State) ->
             jesse_error:handle_data_invalid(?READ_ONLY_ERROR, Value, State);
         response ->
             State
+    end.
+
+validate_pattern(Value, {?PATTERN, Pattern}, State) ->
+    case re:run(Value, Pattern, [{capture, none}, unicode, ucp]) of
+        match ->
+            State;
+        nomatch ->
+            jesse_error:handle_data_invalid(?NO_MATCH_ERROR, Value, State)
     end.
 
 options() ->
