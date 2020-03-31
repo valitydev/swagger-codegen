@@ -1,24 +1,10 @@
 %% -*- mode: erlang -*-
 -module({{packageName}}_param_validator).
 
--export([validate/2]).
+-export([validate/3]).
 
 -type param_base_rule() ::
-    {type, 'binary'}  |
-    {type, 'integer'} |
-    {type, 'boolean'} |
-    {type, 'byte'}    |
-    {type, 'float'}   |
-    %{type, 'list'}    | ?
-    %{type, 'map'}     | ?
-    %{type, 'object'}  | ?
-    %{type, 'file'}    | ?
-    {format, 'int32'}      |
-    {format, 'int64'}      |
-    {format, 'date'}       |
-    {format, 'date-time'}  |
-    {format, 'email'}      |
-    {format, 'ip-address'} |
+    {{packageName}}_common_validator:param_rule() |
     {enum, [atom()]} |
     {max, Max :: number(), Type :: exclusive | inclusive} |
     {min, Min :: number(), Type :: exclusive | inclusive} |
@@ -35,21 +21,37 @@
     param_base_rule() |
     {'list', collection_format(), [param_base_rule()]}.
 
--export_type([param_rule/0]).
+-type value() :: {{packageName}}:value().
 
+-type result() :: ok | {ok, Prepared :: value()} | error | {error, Error :: term()}.
+
+-type validation_opts() :: {{packageName}}_validation:validation_opts().
+
+-export_type([param_rule/0]).
 
 %% API
 
--spec validate(Rule :: param_rule(), Param :: {{packageName}}:value()) ->
-    ok | {ok, Prepared :: {{packageName}}:value()} | error.
+-spec validate(param_rule(), value(), validation_opts()) ->
+    result().
 
-validate(true, _Value) ->
+validate(Rule, Value, ValidationOpts) ->
+    case {{packageName}}_custom_validator:validate_param(Rule, Value, ValidationOpts) of
+        pass -> do_validate(Rule, Value);
+        Result -> Result
+    end.
+
+%%
+
+-spec do_validate(Rule :: param_rule(), Value :: value()) ->
+    result().
+
+do_validate(true, _Value) ->
     ok;
 
-validate(false, _Value) ->
+do_validate(false, _Value) ->
     error;
 
-validate({'list', Format, Ruleset}, Value) ->
+do_validate({'list', Format, Ruleset}, Value) ->
     try
         Values = parse_array(Format, Value),
         {ok, [validate_ruleset(Ruleset, V) || V <- Values]}
@@ -58,109 +60,7 @@ validate({'list', Format, Ruleset}, Value) ->
             error
     end;
 
-%% TYPES
-
-validate({type, 'binary'}, Value) ->
-    case is_binary(Value) of
-        true -> ok;
-        false -> error
-    end;
-
-validate({type, 'integer'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'boolean'},  Value) when is_boolean(Value) ->
-    {ok, Value};
-validate({type, 'boolean'}, Value) ->
-    case {{packageName}}_utils:to_lower(Value) of
-        <<"true">> ->  {ok, true};
-        <<"false">> -> {ok, false};
-        _ -> error
-    end;
-
-validate({type, 'byte'}, Value) ->
-    try
-        validate_base64(Value)
-    catch error:badarg ->
-        error
-    end;
-
-validate({type, 'float'}, Value) ->
-    try
-        {ok, {{packageName}}_utils:to_float(Value)}
-    catch
-        error:badarg ->
-            error
-    end;
-
-%% FORMATS
-
-validate({format, 'int64'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        ok = validate_between(Value, -9223372036854775808, 922337203685477580),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({format, 'int32'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        ok = validate_between(Value, -2147483648, 2147483647),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({format, 'date'}, Value) ->
-    case is_binary(Value) of
-        true ->
-            validate_date(Value);
-        false -> error
-    end;
-
-validate({format, 'date-time'}, Value) ->
-    case is_binary(Value) of
-        true ->
-            validate_datetime(Value);
-        false -> error
-    end;
-
-validate({format, 'email'}, Value) when is_binary(Value) ->
-    case email_validator:validate(Value) of
-        ok -> ok;
-        {error, _} -> error
-    end;
-validate({format, 'email'}, _Value) ->
-    error;
-
-validate({format, 'ip-address'}, Value0) when is_binary(Value0) ->
-    Value = binary_to_list(Value0),
-    case inet:parse_strict_address(Value) of
-        {ok, _IPAddress} ->
-            ok;
-        {error, einval} ->
-            error
-    end;
-validate({format, 'ip-address'}, _Value) ->
-    error;
-
-validate({format, Unknown}, _Value) ->
-    _ = error_logger:warning_msg("Attempted to validate unknown format ~p, ignored.", [Unknown]),
-    ok;
-
-%%
-
-validate({enum, Values}, Value) ->
+do_validate({enum, Values}, Value) ->
     try
         FormattedValue = {{packageName}}_utils:binary_to_existing_atom(Value, utf8),
         case lists:member(FormattedValue, Values) of
@@ -172,7 +72,7 @@ validate({enum, Values}, Value) ->
             error
     end;
 
-validate({max, Max, Type}, Value) ->
+do_validate({max, Max, Type}, Value) ->
     Result = case Value of
         _ when Value < Max andalso Type =:= exclusive ->
             true;
@@ -186,7 +86,7 @@ validate({max, Max, Type}, Value) ->
         false -> error
     end;
 
-validate({min, Min, Type}, Value) ->
+do_validate({min, Min, Type}, Value) ->
     Result = case Value of
         _ when Value > Min andalso Type =:= exclusive ->
             true;
@@ -200,74 +100,34 @@ validate({min, Min, Type}, Value) ->
         false -> error
     end;
 
-validate({max_length, MaxLength}, Value) ->
+do_validate({max_length, MaxLength}, Value) ->
     case size(Value) =< MaxLength of
         true -> ok;
         false -> error
     end;
 
-validate({min_length, MinLength}, Value) ->
+do_validate({min_length, MinLength}, Value) ->
     case size(Value) >= MinLength of
         true -> ok;
         false -> error
     end;
 
-validate({pattern, Pattern}, Value) ->
+do_validate({pattern, Pattern}, Value) ->
     {ok, MP} = re:compile(Pattern, [unicode, ucp]),
     case re:run(Value, MP) of
         {match, _} -> ok;
         _ -> error
-    end.
-
--spec validate_between(Value :: {{packageName}}:value(), Min :: integer(), Max :: integer()) ->
-    ok | no_return().
-
-validate_between(Value, Min, Max) when
-    is_integer(Value),
-    Value >= Min,
-    Value =< Max ->
-    ok;
-
-validate_between(_, _, _) ->
-    error(badarg).
-
-
-%% Internal
-
--spec validate_base64(Value :: {{packageName}}:value()) ->
-    ok | no_return().
-
-validate_base64(Value) when is_binary(Value) ->
-    try
-        _ = base64:decode(Value),
-        ok
-    catch
-        _:_ ->
-            error(badarg)
     end;
 
-validate_base64(_) ->
-    error(badarg).
+% Common
 
+do_validate({RuleName, _} = Rule, Value) when
+    RuleName =:= type;
+    RuleName =:= format
+->
+    {{packageName}}_common_validator:validate(Rule, Value).
 
--spec validate_date(Value :: binary()) ->
-    ok | error.
-
-validate_date(Value) when is_binary(Value) ->
-    validate_datetime(<<Value/binary, "T00:00:00Z">>).
-
--spec validate_datetime(Value :: binary()) ->
-    ok | error.
-
-validate_datetime(Value) when is_binary(Value) ->
-  Str = erlang:binary_to_list(Value),
-  try calendar:rfc3339_to_system_time(Str) of
-    Seconds when is_integer(Seconds) ->
-      ok
-  catch
-    error:_ ->
-      error
-  end.
+%% Internal
 
 -spec validate_ruleset(
     Ruleset :: [param_base_rule()],
@@ -278,7 +138,7 @@ validate_datetime(Value) when is_binary(Value) ->
 validate_ruleset(Ruleset, Value) ->
     lists:foldl(
         fun(R, V0) ->
-            case validate(R, Value) of
+            case do_validate(R, Value) of
                 {ok, V} -> V;
                 ok -> V0;
                 error -> throw(wrong_param)
@@ -331,100 +191,100 @@ get_split_pattern('pipes') ->
 -spec validate_array_test() -> _.
 
 validate_integer_test() ->
-    ?assertEqual({ok, 2}, validate({type, 'integer'}, 2)),
-    ?assertEqual({ok, 6}, validate({type, 'integer'}, <<"6">>)),
-    ?assertEqual(error,   validate({type, 'integer'}, <<"nope">>)).
+    ?assertEqual({ok, 2}, do_validate({type, 'integer'}, 2)),
+    ?assertEqual({ok, 6}, do_validate({type, 'integer'}, <<"6">>)),
+    ?assertEqual(error,   do_validate({type, 'integer'}, <<"nope">>)).
 
 validate_int64_test() ->
-    ?assertEqual({ok, 2}, validate({format, 'int64'},2)),
-    ?assertEqual({ok, 6}, validate({format, 'int64'},<<"6">>)),
-    ?assertEqual(error, validate({format, 'int64'}, 922337203685477581)),
-    ?assertEqual(error, validate({format, 'int64'},-9223372036854775809)).
+    ?assertEqual({ok, 2}, do_validate({format, 'int64'},2)),
+    ?assertEqual({ok, 6}, do_validate({format, 'int64'},<<"6">>)),
+    ?assertEqual(error, do_validate({format, 'int64'}, 922337203685477581)),
+    ?assertEqual(error, do_validate({format, 'int64'},-9223372036854775809)).
 
 validate_int32_test() ->
-    ?assertEqual({ok, 6}, validate({format, 'int32'}, 6)),
-    ?assertEqual({ok, 21}, validate({format, 'int32'}, <<"21">>)),
-    ?assertEqual(error, validate({format, 'int32'}, -2147483649)),
-    ?assertEqual(error, validate({format, 'int32'},2147483648)).
+    ?assertEqual({ok, 6}, do_validate({format, 'int32'}, 6)),
+    ?assertEqual({ok, 21}, do_validate({format, 'int32'}, <<"21">>)),
+    ?assertEqual(error, do_validate({format, 'int32'}, -2147483649)),
+    ?assertEqual(error, do_validate({format, 'int32'},2147483648)).
 
 validate_float_test() ->
-    ?assertEqual({ok, 1.9}, validate({type, 'float'}, <<"1.9">>)),
-    ?assertEqual({ok, 3.0}, validate({type, 'float'}, <<"3">>)),
-    ?assertEqual(error, validate({type, 'float'}, <<"c">>)).
+    ?assertEqual({ok, 1.9}, do_validate({type, 'float'}, <<"1.9">>)),
+    ?assertEqual({ok, 3.0}, do_validate({type, 'float'}, <<"3">>)),
+    ?assertEqual(error, do_validate({type, 'float'}, <<"c">>)).
 
 validate_binary_test() ->
-    ?assertEqual(ok, validate({type, 'binary'}, <<"f">>)),
-    ?assertEqual(error, validate({type, 'binary'}, [])),
-    ?assertEqual(error, validate({type, 'binary'}, 3)).
+    ?assertEqual(ok, do_validate({type, 'binary'}, <<"f">>)),
+    ?assertEqual(error, do_validate({type, 'binary'}, [])),
+    ?assertEqual(error, do_validate({type, 'binary'}, 3)).
 
 validate_byte_test() ->
-    ?assertEqual(ok, validate({type, 'byte'}, <<"0YXRg9C5">>)),
-    ?assertEqual(error, validate({type, 'byte'}, <<"g">>)).
+    ?assertEqual(ok, do_validate({type, 'byte'}, <<"0YXRg9C5">>)),
+    ?assertEqual(error, do_validate({type, 'byte'}, <<"g">>)).
 
 validate_boolean_test() ->
-    ?assertEqual({ok, true}, validate({type, 'boolean'}, <<"true">>)),
-    ?assertEqual({ok, false}, validate({type, 'boolean'}, <<"false">>)),
-    ?assertEqual({ok, false}, validate({type, 'boolean'}, false)),
-    ?assertEqual(error, validate({type, 'boolean'}, <<"nope">>)).
+    ?assertEqual({ok, true}, do_validate({type, 'boolean'}, <<"true">>)),
+    ?assertEqual({ok, false}, do_validate({type, 'boolean'}, <<"false">>)),
+    ?assertEqual({ok, false}, do_validate({type, 'boolean'}, false)),
+    ?assertEqual(error, do_validate({type, 'boolean'}, <<"nope">>)).
 
 validate_date_test() ->
-    ?assertEqual(ok, validate({format, 'date'}, <<"2014-03-19">>)),
-    ?assertEqual(error, validate({format, 'date'}, <<"2014-19-03">>)),
-    ?assertEqual(error, validate({format, 'date'}, <<"2013">>)),
-    ?assertEqual(error, validate({format, 'date'}, <<"nope">>)),
-    ?assertEqual(error, validate({format, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
+    ?assertEqual(ok, do_validate({format, 'date'}, <<"2014-03-19">>)),
+    ?assertEqual(error, do_validate({format, 'date'}, <<"2014-19-03">>)),
+    ?assertEqual(error, do_validate({format, 'date'}, <<"2013">>)),
+    ?assertEqual(error, do_validate({format, 'date'}, <<"nope">>)),
+    ?assertEqual(error, do_validate({format, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
 
 validate_datetime_test() ->
-    ?assertEqual(ok, validate({format, 'date-time'}, <<"2014-03-19T18:35:03-04:00">>)),
-    ?assertEqual(error, validate({format, 'date-time'}, <<"2014-11-19">>)),
-    ?assertEqual(error, validate({format, 'date-time'}, <<"nope">>)).
+    ?assertEqual(ok, do_validate({format, 'date-time'}, <<"2014-03-19T18:35:03-04:00">>)),
+    ?assertEqual(error, do_validate({format, 'date-time'}, <<"2014-11-19">>)),
+    ?assertEqual(error, do_validate({format, 'date-time'}, <<"nope">>)).
 
 validate_email_test() ->
-    ?assertEqual(ok, validate({format, 'email'}, <<"me@example.com">>)),
-    ?assertEqual(error, validate({format, 'email'}, <<"m\\e@example.com">>)),
-    ?assertEqual(error, validate({format, 'email'}, <<"nope">>)).
+    ?assertEqual(ok, do_validate({format, 'email'}, <<"me@example.com">>)),
+    ?assertEqual(error, do_validate({format, 'email'}, <<"m\\e@example.com">>)),
+    ?assertEqual(error, do_validate({format, 'email'}, <<"nope">>)).
 
 validate_ip_address_test() ->
-    ?assertEqual(ok, validate({format, 'ip-address'}, <<"127.0.0.1">>)),
-    ?assertEqual(ok, validate({format, 'ip-address'}, <<"::1">>)),
-    ?assertEqual(error, validate({format, 'ip-address'}, <<"127.0.0.0.1">>)),
-    ?assertEqual(error, validate({format, 'ip-address'}, <<"nope">>)).
+    ?assertEqual(ok, do_validate({format, 'ip-address'}, <<"127.0.0.1">>)),
+    ?assertEqual(ok, do_validate({format, 'ip-address'}, <<"::1">>)),
+    ?assertEqual(error, do_validate({format, 'ip-address'}, <<"127.0.0.0.1">>)),
+    ?assertEqual(error, do_validate({format, 'ip-address'}, <<"nope">>)).
 
 validate_enum_test() ->
-    ?assertEqual({ok, sad}, validate({enum, [i, am, sad]} , <<"sad">>)),
-    ?assertEqual(error, validate({enum, ['All work and no play', 'makes Jack a dull boy']}, <<"Artem">>)),
-    ?assertEqual(error, validate({enum, []}, <<"">>)).
+    ?assertEqual({ok, sad}, do_validate({enum, [i, am, sad]} , <<"sad">>)),
+    ?assertEqual(error, do_validate({enum, ['All work and no play', 'makes Jack a dull boy']}, <<"Artem">>)),
+    ?assertEqual(error, do_validate({enum, []}, <<"">>)).
 
 validate_max_test() ->
-    ?assertEqual(ok, validate({max, 10, inclusive}, 10)),
-    ?assertEqual(error, validate({max, 10, exclusive}, 10)),
-    ?assertEqual(ok, validate({max, 32, inclusive}, 21)),
-    ?assertEqual(ok, validate({max, 32, exclusive}, 21)).
+    ?assertEqual(ok, do_validate({max, 10, inclusive}, 10)),
+    ?assertEqual(error, do_validate({max, 10, exclusive}, 10)),
+    ?assertEqual(ok, do_validate({max, 32, inclusive}, 21)),
+    ?assertEqual(ok, do_validate({max, 32, exclusive}, 21)).
 
 validate_min_test() ->
-    ?assertEqual(ok, validate({min, 33, inclusive}, 33)),
-    ?assertEqual(error, validate({min, 33, exclusive}, 33)),
-    ?assertEqual(ok, validate({min, 57, inclusive}, 60)),
-    ?assertEqual(ok, validate({min, 57, inclusive}, 60)).
+    ?assertEqual(ok, do_validate({min, 33, inclusive}, 33)),
+    ?assertEqual(error, do_validate({min, 33, exclusive}, 33)),
+    ?assertEqual(ok, do_validate({min, 57, inclusive}, 60)),
+    ?assertEqual(ok, do_validate({min, 57, inclusive}, 60)).
 
 validate_max_length_test() ->
-    ?assertEqual(ok, validate({max_length, 5}, <<"hello">>)),
-    ?assertEqual(ok, validate({max_length, 5}, <<"h">>)),
-    ?assertEqual(error, validate({max_length, 5}, <<"hello?">>)).
+    ?assertEqual(ok, do_validate({max_length, 5}, <<"hello">>)),
+    ?assertEqual(ok, do_validate({max_length, 5}, <<"h">>)),
+    ?assertEqual(error, do_validate({max_length, 5}, <<"hello?">>)).
 
 validate_min_length_test() ->
-    ?assertEqual(ok, validate({min_length, 5}, <<"hello">>)),
-    ?assertEqual(ok, validate({min_length, 5}, <<"hello?">>)),
-    ?assertEqual(error, validate({min_length, 5}, <<"h">>)).
+    ?assertEqual(ok, do_validate({min_length, 5}, <<"hello">>)),
+    ?assertEqual(ok, do_validate({min_length, 5}, <<"hello?">>)),
+    ?assertEqual(error, do_validate({min_length, 5}, <<"h">>)).
 
 validate_pattern_test() ->
-    ?assertEqual(ok, validate({pattern, <<"[abc]">>},  <<"adcv">>)),
-    ?assertEqual(error, validate({pattern, <<"[abc]">>},  <<"fgh0">>)),
-    ?assertEqual(ok, validate({pattern, <<"^[0-9]{2}\/[0-9]{2}$">>}, <<"22/22">>)),
-    ?assertEqual(error, validate({pattern, <<"^[0-9]{2}\/[0-9]{2}$">>}, <<"22/225">>)).
+    ?assertEqual(ok, do_validate({pattern, <<"[abc]">>},  <<"adcv">>)),
+    ?assertEqual(error, do_validate({pattern, <<"[abc]">>},  <<"fgh0">>)),
+    ?assertEqual(ok, do_validate({pattern, <<"^[0-9]{2}\/[0-9]{2}$">>}, <<"22/22">>)),
+    ?assertEqual(error, do_validate({pattern, <<"^[0-9]{2}\/[0-9]{2}$">>}, <<"22/225">>)).
 
 validate_array_test() ->
-    ?assertEqual({ok, [10,11,12]}, validate({list, 'csv', [{format, 'int32'}]}, <<"10,11,12">>)),
-    ?assertEqual(error, validate({list, 'csv', [{format, 'int32'}]}, <<"10,xyi,12">>)).
+    ?assertEqual({ok, [10,11,12]}, do_validate({list, 'csv', [{format, 'int32'}]}, <<"10,11,12">>)),
+    ?assertEqual(error, do_validate({list, 'csv', [{format, 'int32'}]}, <<"10,xyi,12">>)).
 
 -endif.

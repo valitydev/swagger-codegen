@@ -55,7 +55,10 @@
 -type schema_validation_opts() :: #{msg_type() => validation_ruleset()}.
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
 
+-type schema_rule() :: {binary(), jesse:json_term()}.
+
 -export_type([schema_validation_opts/0]).
+-export_type([schema_rule/0]).
 
 -type state() ::
     #{
@@ -130,7 +133,14 @@ expand_ruleset(strict) ->
 
 check_value(Value, Attr, State) ->
     try
-        do_check_value(Value, Attr, State)
+        case call_custom_validator(Value, Attr, State) of
+            ok   ->
+                State;
+            pass ->
+                do_check_value(Value, Attr, State);
+            {error, Error} ->
+                jesse_error:handle_data_invalid(Error, Value, State)
+        end
     catch
         throw:Errors ->
             case handle_check_value_errors(Errors, Attr, Value, State) of
@@ -152,22 +162,20 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         false -> validate_ref(Value, Attr, State)
     end;
 do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    case call_custom_format_validator(Value, Format, State) of
-        ok   ->
-            State;
-        pass ->
-            validate_format(Value, Format, State);
-        {error, _} ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State)
-    end;
+    %%@TODO Validate formats and types with common validator
+    validate_format(Value, Format, State);
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
 
-call_custom_format_validator(Value, {?FORMAT, Format}, State) ->
-    #{custom_validator := ValidatorModule} = jesse_state:get_validator_state(State),
-    {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidatorModule).
+call_custom_validator(Value, Attr, State) ->
+    ValidatorOpts = make_validator_opts(jesse_state:get_validator_state(State)),
+    {{packageName}}_custom_validator:validate_schema(Attr, Value, ValidatorOpts).
+
+make_validator_opts(ValidatorState) ->
+    ValidatorModule = maps:get(custom_validator, ValidatorState),
+    #{custom_validator => ValidatorModule}.
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
@@ -247,7 +255,7 @@ validate_format(Value, {?FORMAT, Type}, State) when
     Type =:= <<"byte">>   orelse
     Type =:= <<"binary">>
 ->
-    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
+    case {{packageName}}_common_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, State);
         _ ->
@@ -259,7 +267,7 @@ validate_format(Value, {?FORMAT, Format}, State) when
     Format =:= <<"date">>   orelse
     Format =:= <<"email">>
 ->
-    case {{packageName}}_param_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
+    case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, State);
         _ ->

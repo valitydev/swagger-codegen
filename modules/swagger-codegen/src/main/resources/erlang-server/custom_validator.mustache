@@ -1,18 +1,37 @@
 -module({{packageName}}_custom_validator).
--export([validate_format/3]).
+-export([validate_param/3]).
+-export([validate_schema/3]).
 
--type format()   :: atom().
--type value()    :: {{packageName}}:value().
+-type param_rule()  :: {{packageName}}_param_validator:param_rule().
+-type schema_rule() :: {{packageName}}_schema_validator:schema_rule().
+-type value()       :: {{packageName}}:value().
 
--type validate_return() :: ok | {ok, term()} | pass | {error, term()}.
+-type validation_opts() :: {{packageName}}_validation:validation_opts().
 
-%% @TODO: Right now this callback won't be called when verifying formats of list members
--callback validate_format(format(), value()) ->
-    validate_return().
+-type result() :: ok | {ok, term()} | pass | error | {error, term()}.
 
--spec validate_format(format(), value(), module() | undefined) ->
-    validate_return().
-validate_format(_Format, _Value, undefined) ->
-    pass;
-validate_format(Format, Value, Module) ->
-    Module:validate_format(Format, Value).
+%% BEHAVIOUR
+
+-callback validate_param(param_rule(), value()) -> result().
+-callback validate_schema(schema_rule(), value()) -> result().
+
+%% API
+
+-spec validate_param(param_rule(), value(), validation_opts()) -> result().
+validate_param(Rule, Value, ValidationOpts) ->
+    case get_validatior(ValidationOpts) of
+        undefined -> pass;
+        Module -> Module:validate_param(Rule, Value)
+    end.
+
+-spec validate_schema(schema_rule(), value(), validation_opts()) -> result().
+validate_schema(Rule, Value, ValidationOpts) ->
+    case get_validatior(ValidationOpts) of
+        undefined -> pass;
+        Module -> Module:validate_schema(Rule, Value)
+    end.
+
+%%
+
+get_validatior(ValidationOpts) ->
+    maps:get(custom_validator, ValidationOpts, undefined).
