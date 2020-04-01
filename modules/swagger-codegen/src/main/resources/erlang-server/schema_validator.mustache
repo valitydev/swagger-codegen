@@ -51,7 +51,7 @@
 -type validation_keyword_list() :: list(validation_keyword()).
 -type validation_ruleset() :: none | mild | strict | validation_keyword_list().
 
--type msg_type() :: request | response.
+-type msg_type() :: {{packageName}}_validation:msg_type().
 -type schema_validation_opts() :: #{msg_type() => validation_ruleset()}.
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
 
@@ -64,7 +64,9 @@
     #{
         refs => [],
         msg_type => msg_type(),
-        validation_keywords => validation_keyword_list()
+        def_name => {{packageName}}:param_name(),
+        validation_keywords => validation_keyword_list(),
+        custom_validator => module()
     }.
 
 
@@ -90,6 +92,7 @@ validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
     Options = [
         {validator_opts, #{
             msg_type => MsgType,
+            def_name => DefName,
             validation_keywords => ValidationKeywords,
             custom_validator => CustomValidator
         }} | options()

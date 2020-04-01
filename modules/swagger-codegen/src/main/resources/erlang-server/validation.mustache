@@ -27,11 +27,14 @@
     custom_validator => module()
 }.
 
+-type msg_type() :: request | response.
+
 -export_type([rule/0]).
 -export_type([response_spec/0]).
 -export_type([error/0]).
 -export_type([error_type/0]).
 -export_type([validation_opts/0]).
+-export_type([msg_type/0]).
 
 -define(catch_error(Block),
     try
@@ -117,8 +120,8 @@ validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule, Name, Value, _MsgType, ValidationOpts) ->
-    case {{packageName}}_param_validator:validate(Rule, Value, ValidationOpts) of
+validate(Rule, Name, Value, MsgType, ValidationOpts) ->
+    case {{packageName}}_param_validator:validate(Rule, Name, Value, MsgType, ValidationOpts) of
         ok ->
             ok;
         Ok = {ok, _} ->

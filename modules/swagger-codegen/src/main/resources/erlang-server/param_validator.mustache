@@ -1,7 +1,7 @@
 %% -*- mode: erlang -*-
 -module({{packageName}}_param_validator).
 
--export([validate/3]).
+-export([validate/5]).
 
 -type param_base_rule() ::
     {{packageName}}_common_validator:param_rule() |
@@ -21,7 +21,9 @@
     param_base_rule() |
     {'list', collection_format(), [param_base_rule()]}.
 
--type value() :: {{packageName}}:value().
+-type name()     :: {{packageName}}:param_name().
+-type value()    :: {{packageName}}:value().
+-type msg_type() :: {{packageName}}_validation:msg_type().
 
 -type result() :: ok | {ok, Prepared :: value()} | error | {error, Error :: term()}.
 
@@ -31,11 +33,11 @@
 
 %% API
 
--spec validate(param_rule(), value(), validation_opts()) ->
+-spec validate(param_rule(), name(), value(), msg_type(), validation_opts()) ->
     result().
 
-validate(Rule, Value, ValidationOpts) ->
-    case {{packageName}}_custom_validator:validate_param(Rule, Value, ValidationOpts) of
+validate(Rule, Name, Value, MsgType, ValidationOpts) ->
+    case {{packageName}}_custom_validator:validate_param(Rule, Name, Value, MsgType, ValidationOpts) of
         pass -> do_validate(Rule, Value);
         Result -> Result
     end.
