@@ -133,20 +133,21 @@ expand_ruleset(strict) ->
 
 check_value(Value, Attr, State) ->
     try
-        case call_custom_validator(Value, Attr, State) of
-            ok   ->
-                State;
-            pass ->
-                do_check_value(Value, Attr, State);
-            {error, Error} ->
-                jesse_error:handle_data_invalid(Error, Value, State)
-        end
+        maybe_call_custom_validator(Value, Attr, State)
     catch
         throw:Errors ->
             case handle_check_value_errors(Errors, Attr, Value, State) of
                 [] -> State;
                 Unhandled -> throw(Unhandled)
             end
+    end.
+
+maybe_call_custom_validator(Value, Attr, State) ->
+    case {{packageName}}_custom_validator:validate_schema(Attr, Value, State) of
+        pass  ->
+            do_check_value(Value, Attr, State);
+        State ->
+            State
     end.
 
 do_check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
@@ -161,21 +162,35 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         true -> State;
         false -> validate_ref(Value, Attr, State)
     end;
-do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    %%@TODO Validate formats and types with common validator
-    validate_format(Value, Format, State);
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
+do_check_value(Value, {?FORMAT, Type}, State) when
+    Type =:= <<"float">> orelse
+    Type =:= <<"byte">>  orelse
+    Type =:= <<"binary">>
+->
+    case {{packageName}}_common_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
+do_check_value(Value, {?FORMAT, Format}, State) when
+    Format =:= <<"int32">>      orelse
+    Format =:= <<"int64">>      orelse
+    Format =:= <<"date">>       orelse
+    Format =:= <<"date-time">>  orelse
+    Format =:= <<"ip-address">> orelse
+    Format =:= <<"email">>
+->
+    case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
-
-call_custom_validator(Value, Attr, State) ->
-    ValidatorOpts = make_validator_opts(jesse_state:get_validator_state(State)),
-    {{packageName}}_custom_validator:validate_schema(Attr, Value, ValidatorOpts).
-
-make_validator_opts(ValidatorState) ->
-    ValidatorModule = maps:get(custom_validator, ValidatorState),
-    #{custom_validator => ValidatorModule}.
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
@@ -249,32 +264,6 @@ validate_schema(Value, Schema, State0) ->
         false ->
             jesse_error:handle_schema_invalid(schema_invalid, State0)
     end.
-
-validate_format(Value, {?FORMAT, Type}, State) when
-    Type =:= <<"float">>  orelse
-    Type =:= <<"byte">>   orelse
-    Type =:= <<"binary">>
-->
-    case {{packageName}}_common_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
-        error ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State);
-        _ ->
-            State
-    end;
-validate_format(Value, {?FORMAT, Format}, State) when
-    Format =:= <<"int32">>  orelse
-    Format =:= <<"int64">>  orelse
-    Format =:= <<"date">>   orelse
-    Format =:= <<"email">>
-->
-    case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
-        error ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State);
-        _ ->
-            State
-    end;
-validate_format(Value, Format, State) ->
-    jesse_validator_draft4:check_value(Value, Format, State).
 
 validate_ref(Value, Attr = {?REF, Ref} , State) ->
     Path = jesse_state:get_current_path(State),

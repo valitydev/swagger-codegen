@@ -8,30 +8,43 @@
 
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
 
--type result() :: ok | {ok, term()} | pass | error | {error, term()}.
+-type validate_param_result() ::
+    ok | {ok, term()} | pass | error | {error, Error :: term()}.
+
+-type validate_schema_result() ::
+    jesse_state:state() | pass | no_return().
 
 %% BEHAVIOUR
 
--callback validate_param(param_rule(), value()) -> result().
--callback validate_schema(schema_rule(), value()) -> result().
+-callback validate_param(param_rule(), value()) ->
+    validate_param_result().
+
+-callback validate_schema(schema_rule(), value(), jesse_state:state()) ->
+    validate_schema_result().
 
 %% API
 
--spec validate_param(param_rule(), value(), validation_opts()) -> result().
+-spec validate_param(param_rule(), value(), validation_opts()) ->
+    validate_param_result().
 validate_param(Rule, Value, ValidationOpts) ->
     case get_validatior(ValidationOpts) of
         undefined -> pass;
         Module -> Module:validate_param(Rule, Value)
     end.
 
--spec validate_schema(schema_rule(), value(), validation_opts()) -> result().
-validate_schema(Rule, Value, ValidationOpts) ->
+-spec validate_schema(schema_rule(), value(), jesse_state:state()) ->
+    validate_schema_result().
+validate_schema(Rule, Value, JesseState) ->
+    ValidationOpts = to_validation_opts(JesseState),
     case get_validatior(ValidationOpts) of
         undefined -> pass;
-        Module -> Module:validate_schema(Rule, Value)
+        Module -> Module:validate_schema(Rule, Value, JesseState)
     end.
 
 %%
+
+to_validation_opts(JesseState) ->
+    maps:with([custom_validator], jesse_state:get_validator_state(JesseState)).
 
 get_validatior(ValidationOpts) ->
     maps:get(custom_validator, ValidationOpts, undefined).
