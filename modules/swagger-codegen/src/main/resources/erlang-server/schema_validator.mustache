@@ -136,7 +136,7 @@ expand_ruleset(strict) ->
 
 check_value(Value, Attr, State) ->
     try
-        maybe_call_custom_validator(Value, Attr, State)
+        maybe_use_custom_validator(Value, Attr, State)
     catch
         throw:Errors ->
             case handle_check_value_errors(Errors, Attr, Value, State) of
@@ -145,7 +145,7 @@ check_value(Value, Attr, State) ->
             end
     end.
 
-maybe_call_custom_validator(Value, Attr, State) ->
+maybe_use_custom_validator(Value, Attr, State) ->
     case {{packageName}}_custom_validator:validate_schema(Attr, Value, State) of
         pass  ->
             do_check_value(Value, Attr, State);

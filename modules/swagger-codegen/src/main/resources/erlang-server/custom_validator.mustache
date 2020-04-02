@@ -1,5 +1,5 @@
 -module({{packageName}}_custom_validator).
--export([validate_param/5]).
+-export([validate_param/4]).
 -export([validate_schema/3]).
 
 -type param_rule()  :: {{packageName}}_param_validator:param_rule().
@@ -10,6 +10,7 @@
 -type path()        :: [binary() | non_neg_integer()].
 
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
+-type param_meta()      :: {{packageName}}_param_validator:meta().
 
 -type validate_param_result() ::
     ok | {ok, term()} | pass | error | {error, Error :: term()}.
@@ -27,9 +28,10 @@
 
 %% API
 
--spec validate_param(param_rule(), name(), value(), msg_type(), validation_opts()) ->
+-spec validate_param(param_rule(), msg_type(), param_meta(), validation_opts()) ->
     validate_param_result().
-validate_param(Rule, Name, Value, MsgType, ValidationOpts) ->
+validate_param(Rule, Value, Meta, ValidationOpts) ->
+    {MsgType, Name} = get_params_meta(Meta),
     case get_validatior(ValidationOpts) of
         undefined -> pass;
         Module -> Module:validate_param(Rule, Name, Value, MsgType)
@@ -38,18 +40,28 @@ validate_param(Rule, Name, Value, MsgType, ValidationOpts) ->
 -spec validate_schema(schema_rule(), value(), jesse_state:state()) ->
     validate_schema_result().
 validate_schema(Rule, Value, JesseState) ->
-    #{
-        msg_type := MsgType,
-        def_name := DefName,
-        custom_validator := CustomValidator
-    } = jesse_state:get_validator_state(JesseState),
-    CurrentPath = lists:reverse(jesse_state:get_current_path(JesseState)),
-    case CustomValidator of
+    {MsgType, DefName, CurrentPath} = get_schema_meta(JesseState),
+    ValidationOpts = get_schema_opts(JesseState),
+    case get_validatior(ValidationOpts) of
         undefined -> pass;
         Module -> Module:validate_schema(Rule, DefName, CurrentPath, Value, MsgType, JesseState)
     end.
 
 %%
+
+get_params_meta(#{msg_type := MsgType, name := Name}) ->
+    {MsgType, Name}.
+
+get_schema_meta(JesseState) ->
+    #{
+        msg_type := MsgType,
+        def_name := DefName
+    } = jesse_state:get_validator_state(JesseState),
+    CurrentPath = lists:reverse(jesse_state:get_current_path(JesseState)),
+    {MsgType, DefName, CurrentPath}.
+
+get_schema_opts(JesseState) ->
+    maps:with([custom_validator], jesse_state:get_validator_state(JesseState)).
 
 get_validatior(ValidationOpts) ->
     maps:get(custom_validator, ValidationOpts, undefined).
