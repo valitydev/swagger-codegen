@@ -230,7 +230,8 @@ handle_request_json(
 %% Internal
 
 populate_request(OperationID, Req, ValidationOpts) ->
-    {{packageName}}_handler_api:populate_request(get_request_spec(OperationID), Req, ValidationOpts).
+    Spec = get_request_spec(OperationID),
+    {{packageName}}_handler_api:populate_request(OperationID, Spec, Req, ValidationOpts).
 
 handle_request(LogicHandler, OperationID, Populated, Context) ->
     {{packageName}}_logic_handler:handle_request(LogicHandler, OperationID, Populated, Context).
@@ -239,7 +240,7 @@ validate_response(error, _, _, _) ->
     ok;
 validate_response(ok, {Code, _Headers, Body}, OperationID, ValidationOpts) ->
     Spec = get_response_spec(OperationID, Code),
-    {{packageName}}_handler_api:validate_response(Spec, Body, ValidationOpts).
+    {{packageName}}_handler_api:validate_response(OperationID, Spec, Body, ValidationOpts).
 
 encode_response(Resp) ->
     {{packageName}}_handler_api:encode_response(Resp).

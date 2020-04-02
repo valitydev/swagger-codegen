@@ -4,7 +4,7 @@
 -behaviour(jesse_schema_validator).
 
 %% API
--export([validate/4]).
+-export([validate/5]).
 
 %% Behaviour callbacks
 -export([init_state/1]).
@@ -56,19 +56,29 @@
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
 
 -type schema_rule() :: {binary(), jesse:json_term()}.
+-type schema_path() :: [binary() | non_neg_integer()].
 
 -export_type([schema_validation_opts/0]).
 -export_type([schema_rule/0]).
+-export_type([schema_path/0]).
+
+-type meta() ::
+    #{
+        operation_id := {{packageName}}:operation_id(),
+        msg_type     := msg_type(),
+        def_name     := {{packageName}}:param_name(),
+        current_path => schema_path()
+    }.
+
+-export_type([meta/0]).
 
 -type state() ::
     #{
         refs => [],
-        msg_type => msg_type(),
-        def_name => {{packageName}}:param_name(),
+        validation_meta => meta(),
         validation_keywords => validation_keyword_list(),
         custom_validator => module()
     }.
-
 
 %%
 -spec init_state(Opts :: jesse_state:validator_opts()) -> state().
@@ -77,22 +87,22 @@ init_state(Opts) ->
     Opts#{refs => []}.
 
 -spec validate(
+    OperationID :: {{packageName}}:operation_id(),
     Value      :: {{packageName}}:value(),
     DefName    :: {{packageName}}:param_name(),
     MsgType    :: msg_type(),
     ValidationOpts :: validation_opts()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(Value, DefName, MsgType, ValidationOpts) ->
-    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
+validate(OperationID, Value, DefName, MsgType, ValidationOpts) ->
+    validate(OperationID, Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
-validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
+validate(OperationID, Value, DefName, MsgType, Schema, ValidationOpts) ->
     ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
     CustomValidator    = maps:get(custom_validator, ValidationOpts, undefined),
     Options = [
         {validator_opts, #{
-            msg_type => MsgType,
-            def_name => DefName,
+            validation_meta => make_meta(OperationID, DefName, MsgType),
             validation_keywords => ValidationKeywords,
             custom_validator => CustomValidator
         }} | options()
@@ -103,6 +113,13 @@ validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
         {error, [Error]} ->
             {error, map_error_reason(Error)}
     end.
+
+make_meta(OperationID, DefName, MsgType) ->
+    #{
+        operation_id => OperationID,
+        def_name => DefName,
+        msg_type => MsgType
+    }.
 
 get_validation_keywords(MsgType, ValidationOpts) ->
     SchemaOpts = maps:get(schema, ValidationOpts, #{}),

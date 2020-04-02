@@ -1,7 +1,7 @@
 %% -*- mode: erlang -*-
 -module({{packageName}}_param_validator).
 
--export([validate/5]).
+-export([validate/6]).
 
 -type param_base_rule() ::
     {{packageName}}_common_validator:param_rule() |
@@ -21,6 +21,7 @@
     param_base_rule() |
     {'list', collection_format(), [param_base_rule()]}.
 
+-type operation_id() :: {{packageName}}:operation_id().
 -type name()     :: {{packageName}}:param_name().
 -type value()    :: {{packageName}}:value().
 -type msg_type() :: {{packageName}}_validation:msg_type().
@@ -39,11 +40,11 @@
 
 %% API
 
--spec validate(param_rule(), name(), value(), msg_type(), validation_opts()) ->
+-spec validate(operation_id(), param_rule(), name(), value(), msg_type(), validation_opts()) ->
     result().
 
-validate(Rule, Name, Value, MsgType, ValidationOpts) ->
-    Meta = make_meta(Name, MsgType),
+validate(OperationID, Rule, Name, Value, MsgType, ValidationOpts) ->
+    Meta = make_meta(OperationID, Name, MsgType),
     validate_with_meta(Rule, Value, Meta, ValidationOpts).
 
 validate_with_meta(Rule, Value, Meta, ValidationOpts) ->
@@ -141,8 +142,9 @@ do_validate({RuleName, _} = Rule, Value, _Meta, _Opts) when
 
 %% Internal
 
-make_meta(Name, MsgType) ->
+make_meta(OperationID, Name, MsgType) ->
     #{
+        operation_id => OperationID,
         name => Name,
         msg_type => MsgType
     }.
