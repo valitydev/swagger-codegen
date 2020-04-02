@@ -318,13 +318,16 @@ ref_tag(Ref, Path) ->
     {Ref, Path}.
 
 validate_read_only(Value, true, State) ->
-    #{msg_type := MsgType} = jesse_state:get_validator_state(State),
-    case MsgType of
+    case get_message_type(State) of
         request ->
             jesse_error:handle_data_invalid(?READ_ONLY_ERROR, Value, State);
         response ->
             State
     end.
+
+get_message_type(State) ->
+    #{validation_meta := Meta} = jesse_state:get_validator_state(State),
+    maps:get(msg_type, Meta).
 
 options() ->
     [{validator, ?MODULE}, {allowed_errors, 0}].
