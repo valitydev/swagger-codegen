@@ -4,7 +4,7 @@
 -behaviour(jesse_schema_validator).
 
 %% API
--export([validate/4]).
+-export([validate/5]).
 
 %% Behaviour callbacks
 -export([init_state/1]).
@@ -51,19 +51,34 @@
 -type validation_keyword_list() :: list(validation_keyword()).
 -type validation_ruleset() :: none | mild | strict | validation_keyword_list().
 
--type msg_type() :: request | response.
+-type msg_type() :: {{packageName}}_validation:msg_type().
 -type schema_validation_opts() :: #{msg_type() => validation_ruleset()}.
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
 
+-type schema_rule() :: {binary(), jesse:json_term()}.
+-type schema_path() :: [binary() | non_neg_integer()].
+
 -export_type([schema_validation_opts/0]).
+-export_type([schema_rule/0]).
+-export_type([schema_path/0]).
+
+-type context() ::
+    #{
+        operation_id := {{packageName}}:operation_id(),
+        msg_type     := msg_type(),
+        definition_name     := {{packageName}}:param_name(),
+        current_path => schema_path()
+    }.
+
+-export_type([context/0]).
 
 -type state() ::
     #{
         refs => [],
-        msg_type => msg_type(),
-        validation_keywords => validation_keyword_list()
+        validation_meta => context(),
+        validation_keywords => validation_keyword_list(),
+        custom_validator => module()
     }.
-
 
 %%
 -spec init_state(Opts :: jesse_state:validator_opts()) -> state().
@@ -72,31 +87,39 @@ init_state(Opts) ->
     Opts#{refs => []}.
 
 -spec validate(
+    OperationID :: {{packageName}}:operation_id(),
     Value      :: {{packageName}}:value(),
-    DefName    :: {{packageName}}:param_name(),
+    DefinitionName    :: {{packageName}}:param_name(),
     MsgType    :: msg_type(),
     ValidationOpts :: validation_opts()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(Value, DefName, MsgType, ValidationOpts) ->
-    validate(Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
+validate(OperationID, Value, DefinitionName, MsgType, ValidationOpts) ->
+    validate(OperationID, Value, DefinitionName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
-validate(Value, DefName, MsgType, Schema, ValidationOpts) ->
+validate(OperationID, Value, DefinitionName, MsgType, Schema, ValidationOpts) ->
     ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
     CustomValidator    = maps:get(custom_validator, ValidationOpts, undefined),
     Options = [
         {validator_opts, #{
-            msg_type => MsgType,
+            validation_meta => make_context(OperationID, DefinitionName, MsgType),
             validation_keywords => ValidationKeywords,
             custom_validator => CustomValidator
         }} | options()
     ],
-    case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
+    case jesse:validate_definition({{packageName}}_utils:to_list(DefinitionName), Schema, Value, Options) of
         {ok, _} ->
             ok;
         {error, [Error]} ->
             {error, map_error_reason(Error)}
     end.
+
+make_context(OperationID, DefinitionName, MsgType) ->
+    #{
+        operation_id => OperationID,
+        definition_name => DefinitionName,
+        msg_type => MsgType
+    }.
 
 get_validation_keywords(MsgType, ValidationOpts) ->
     SchemaOpts = maps:get(schema, ValidationOpts, #{}),
@@ -130,13 +153,21 @@ expand_ruleset(strict) ->
 
 check_value(Value, Attr, State) ->
     try
-        do_check_value(Value, Attr, State)
+        maybe_use_custom_validator(Value, Attr, State)
     catch
         throw:Errors ->
             case handle_check_value_errors(Errors, Attr, Value, State) of
                 [] -> State;
                 Unhandled -> throw(Unhandled)
             end
+    end.
+
+maybe_use_custom_validator(Value, Attr, State) ->
+    case {{packageName}}_custom_validator:validate_schema(Attr, Value, State) of
+        pass  ->
+            do_check_value(Value, Attr, State);
+        State ->
+            State
     end.
 
 do_check_value(Value, {?DISCRIMINATOR, DiscrField}, State) ->
@@ -151,23 +182,35 @@ do_check_value(Value, Attr = {?REF, Ref}, State) ->
         true -> State;
         false -> validate_ref(Value, Attr, State)
     end;
-do_check_value(Value, Format = {?FORMAT, _}, State) ->
-    case call_custom_format_validator(Value, Format, State) of
-        ok   ->
-            State;
-        pass ->
-            validate_format(Value, Format, State);
-        {error, _} ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State)
-    end;
 do_check_value(Value, {?READ_ONLY, ReadOnly}, State) ->
     validate_read_only(Value, ReadOnly, State);
+do_check_value(Value, {?FORMAT, Type}, State) when
+    Type =:= <<"float">> orelse
+    Type =:= <<"byte">>  orelse
+    Type =:= <<"binary">>
+->
+    case {{packageName}}_common_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
+do_check_value(Value, {?FORMAT, Format}, State) when
+    Format =:= <<"int32">>      orelse
+    Format =:= <<"int64">>      orelse
+    Format =:= <<"date">>       orelse
+    Format =:= <<"date-time">>  orelse
+    Format =:= <<"ip-address">> orelse
+    Format =:= <<"email">>
+->
+    case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
 do_check_value(Value, Attr, State) ->
     jesse_validator_draft4:check_value(Value, Attr, State).
-
-call_custom_format_validator(Value, {?FORMAT, Format}, State) ->
-    #{custom_validator := ValidatorModule} = jesse_state:get_validator_state(State),
-    {{packageName}}_custom_validator:validate_format(erlang:binary_to_atom(Format, utf8), Value, ValidatorModule).
 
 handle_check_value_errors(Errors, Attr, Value, State) ->
     #{validation_keywords := ValidationKeywords} = jesse_state:get_validator_state(State),
@@ -242,32 +285,6 @@ validate_schema(Value, Schema, State0) ->
             jesse_error:handle_schema_invalid(schema_invalid, State0)
     end.
 
-validate_format(Value, {?FORMAT, Type}, State) when
-    Type =:= <<"float">>  orelse
-    Type =:= <<"byte">>   orelse
-    Type =:= <<"binary">>
-->
-    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
-        error ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State);
-        _ ->
-            State
-    end;
-validate_format(Value, {?FORMAT, Format}, State) when
-    Format =:= <<"int32">>  orelse
-    Format =:= <<"int64">>  orelse
-    Format =:= <<"date">>   orelse
-    Format =:= <<"email">>
-->
-    case {{packageName}}_param_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
-        error ->
-            jesse_error:handle_data_invalid(wrong_format, Value, State);
-        _ ->
-            State
-    end;
-validate_format(Value, Format, State) ->
-    jesse_validator_draft4:check_value(Value, Format, State).
-
 validate_ref(Value, Attr = {?REF, Ref} , State) ->
     Path = jesse_state:get_current_path(State),
     State1 = add_ref_to_state(State, ref_tag(Ref, Path)),
@@ -301,13 +318,16 @@ ref_tag(Ref, Path) ->
     {Ref, Path}.
 
 validate_read_only(Value, true, State) ->
-    #{msg_type := MsgType} = jesse_state:get_validator_state(State),
-    case MsgType of
+    case get_message_type(State) of
         request ->
             jesse_error:handle_data_invalid(?READ_ONLY_ERROR, Value, State);
         response ->
             State
     end.
+
+get_message_type(State) ->
+    #{validation_meta := Meta} = jesse_state:get_validator_state(State),
+    maps:get(msg_type, Meta).
 
 options() ->
     [{validator, ?MODULE}, {allowed_errors, 0}].
@@ -495,16 +515,16 @@ get_error_description(?READ_ONLY_ERROR, _Value) ->
      }}">>).
 -define(PRED, 'Predicate').
 
-test_validate(Value, DefName, BinSchema) ->
-    test_validate(Value, DefName, BinSchema, response).
+test_validate(Value, DefinitionName, BinSchema) ->
+    test_validate(Value, DefinitionName, BinSchema, response).
 
-test_validate(Value, DefName, BinSchema, MsgType) ->
-    test_validate(Value, DefName, BinSchema, MsgType, #{}).
+test_validate(Value, DefinitionName, BinSchema, MsgType) ->
+    test_validate(Value, DefinitionName, BinSchema, MsgType, #{}).
 
-test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
+test_validate(Value, DefinitionName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefName, MsgType, Schema, #{schema => Validation}) of
+    case validate(JsonValue, DefinitionName, MsgType, Schema, #{schema => Validation}) of
         ok             -> ok;
         {error, Error} -> Error
     end.

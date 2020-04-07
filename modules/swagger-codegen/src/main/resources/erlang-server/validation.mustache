@@ -1,7 +1,7 @@
 -module({{packageName}}_validation).
 
--export([prepare_request_param/4]).
--export([validate_response/3]).
+-export([prepare_request_param/5]).
+-export([validate_response/4]).
 
 -type rule()          :: schema | {required, boolean()} | {{packageName}}_param_validator:param_rule().
 -type data_type()     :: 'list' | atom().
@@ -27,11 +27,14 @@
     custom_validator => module()
 }.
 
+-type msg_type() :: request | response.
+
 -export_type([rule/0]).
 -export_type([response_spec/0]).
 -export_type([error/0]).
 -export_type([error_type/0]).
 -export_type([validation_opts/0]).
+-export_type([msg_type/0]).
 
 -define(catch_error(Block),
     try
@@ -46,6 +49,7 @@
 %% API
 
 -spec prepare_request_param(
+    OperationID :: {{packageName}}:operation_id(),
     Rules :: [rule()],
     Name  :: {{packageName}}:param_name(),
     Value :: {{packageName}}:value(),
@@ -54,10 +58,11 @@
     {ok,    Value :: {{packageName}}:value()} |
     {error, Error :: error()}.
 
-prepare_request_param(Rules, Name, Value, ValidationOpts) ->
-    ?catch_error(validate_param(Rules, Name, Value, ValidationOpts)).
+prepare_request_param(OperationID, Rules, Name, Value, ValidationOpts) ->
+    ?catch_error(validate_param(OperationID, Rules, Name, Value, ValidationOpts)).
 
 -spec validate_response(
+    OperationID :: {{packageName}}:operation_id(),
     Spec :: response_spec(),
     Resp :: {{packageName}}:object() | [{{packageName}}:object()] | undefined,
     ValidationOpts :: validation_opts()
@@ -65,26 +70,27 @@ prepare_request_param(Rules, Name, Value, ValidationOpts) ->
     ok |
     {error, Error :: error()}.
 
-validate_response({DataType, SchemaName}, Body, ValidationOpts) ->
+validate_response(OperationID, {DataType, SchemaName}, Body, ValidationOpts) ->
     Result = case DataType of
         'list' ->
-            ?catch_error([validate(schema, SchemaName, Item, response, ValidationOpts) || Item <- Body]);
+            ?catch_error([validate(OperationID, schema, SchemaName, Item, response, ValidationOpts) || Item <- Body]);
         _ ->
-            ?catch_error(validate(schema, SchemaName, Body, response, ValidationOpts))
+            ?catch_error(validate(OperationID, schema, SchemaName, Body, response, ValidationOpts))
     end,
     case Result of
         E = {error, _} -> E;
         _ -> ok
     end;
-validate_response(undefined, undefined, _) ->
+validate_response(_, undefined, undefined, _) ->
     ok;
-validate_response(undefined, _, _) ->
+validate_response(_, undefined, _, _) ->
     {error, map_error(schema, <<"Must be empty">>)}.
 
 
 %% Internal
 
 -spec validate_param(
+    OperationID :: {{packageName}}:operation_id(),
     Rules :: [rule()],
     Name  :: {{packageName}}:param_name(),
     Value :: {{packageName}}:value(),
@@ -92,10 +98,10 @@ validate_response(undefined, _, _) ->
 ) ->
     Prepared :: {{packageName}}:value() | no_return().
 
-validate_param(Rules, Name, Value, ValidationOpts) ->
+validate_param(OperationID, Rules, Name, Value, ValidationOpts) ->
     lists:foldl(
         fun(Rule, Acc) ->
-            case validate(Rule, Name, Acc, request, ValidationOpts) of
+            case validate(OperationID, Rule, Name, Acc, request, ValidationOpts) of
                 ok             -> Acc;
                 {ok, Prepared} -> Prepared
             end
@@ -104,21 +110,21 @@ validate_param(Rules, Name, Value, ValidationOpts) ->
         Rules
     ).
 
-validate(Rule = {required, true}, Name, undefined, _MsgType, _ValidationOpts) ->
+validate(_OperationID, Rule = {required, true}, Name, undefined, _MsgType, _ValidationOpts) ->
     report_validation_error(Rule, Name);
-validate({required, _}, _Name, _, _MsgType, _ValidationOpts) ->
+validate(_OperationID, {required, _}, _Name, _, _MsgType, _ValidationOpts) ->
     ok;
-validate(_, _Name, undefined, _MsgType, _ValidationOpts) ->
+validate(_OperationID, _, _Name, undefined, _MsgType, _ValidationOpts) ->
     ok;
-validate(Rule = schema, Name, Value, MsgType, ValidationOpts) ->
-    case {{packageName}}_schema_validator:validate(Value, Name, MsgType, ValidationOpts) of
+validate(OperationID, Rule = schema, Name, Value, MsgType, ValidationOpts) ->
+    case {{packageName}}_schema_validator:validate(OperationID, Value, Name, MsgType, ValidationOpts) of
         ok ->
             ok;
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
     end;
-validate(Rule = {format, _Format}, Name, Value, _MsgType, ValidationOpts) ->
-    case validate_format(Rule, Value, ValidationOpts) of
+validate(OperationID, Rule, Name, Value, MsgType, ValidationOpts) ->
+    case {{packageName}}_param_validator:validate(OperationID, Rule, Name, Value, MsgType, ValidationOpts) of
         ok ->
             ok;
         Ok = {ok, _} ->
@@ -127,26 +133,7 @@ validate(Rule = {format, _Format}, Name, Value, _MsgType, ValidationOpts) ->
             report_validation_error(Rule, Name);
         {error, Reason} ->
             report_validation_error(Rule, Name, Reason)
-    end;
-validate(Rule, Name, Value, _MsgType, _ValidationOpts) ->
-    case {{packageName}}_param_validator:validate(Rule, Value) of
-        ok ->
-            ok;
-        Ok = {ok, _} ->
-            Ok;
-        error ->
-            report_validation_error(Rule, Name)
     end.
-
-validate_format(Rule = {format, Format}, Value, ValidationOpts) ->
-    case call_custom_format_validator(ValidationOpts, Format, Value) of
-        pass -> {{packageName}}_param_validator:validate(Rule, Value);
-        Result -> Result
-    end.
-
-call_custom_format_validator(ValidationOpts, Format, Value) ->
-    ValidatorModule = maps:get(custom_validator, ValidationOpts, undefined),
-    {{packageName}}_custom_validator:validate_format(Format, Value, ValidatorModule).
 
 -spec report_validation_error(Rule :: rule(), Param :: {{packageName}}:param_name()) ->
     no_return().
@@ -196,8 +183,8 @@ map_violated_rule({list, _, _}) ->  wrong_array.
 -spec validate_required_test() -> _.
 
 validate_required_test() ->
-    ?assertEqual(ok, validate({required, true}, 'Name', <<"test">>, request, strict)),
-    ?assertEqual(ok, validate({required, false}, 'Name', <<"test">>, request, strict)),
-    ?assertThrow({wrong_param, _, _}, validate({required, true}, 'Name', undefined, request, strict)).
+    ?assertEqual(ok, validate(test, {required, true}, 'Name', <<"test">>, request, strict)),
+    ?assertEqual(ok, validate(test, {required, false}, 'Name', <<"test">>, request, strict)),
+    ?assertThrow({wrong_param, _, _}, validate(test, {required, true}, 'Name', undefined, request, strict)).
 
 -endif.
