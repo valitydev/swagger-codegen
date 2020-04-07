@@ -62,20 +62,20 @@
 -export_type([schema_rule/0]).
 -export_type([schema_path/0]).
 
--type meta() ::
+-type context() ::
     #{
         operation_id := {{packageName}}:operation_id(),
         msg_type     := msg_type(),
-        def_name     := {{packageName}}:param_name(),
+        definition_name     := {{packageName}}:param_name(),
         current_path => schema_path()
     }.
 
--export_type([meta/0]).
+-export_type([context/0]).
 
 -type state() ::
     #{
         refs => [],
-        validation_meta => meta(),
+        validation_meta => context(),
         validation_keywords => validation_keyword_list(),
         custom_validator => module()
     }.
@@ -89,35 +89,35 @@ init_state(Opts) ->
 -spec validate(
     OperationID :: {{packageName}}:operation_id(),
     Value      :: {{packageName}}:value(),
-    DefName    :: {{packageName}}:param_name(),
+    DefinitionName    :: {{packageName}}:param_name(),
     MsgType    :: msg_type(),
     ValidationOpts :: validation_opts()
 ) ->
     ok | {error, Error :: {{packageName}}:error_reason()}.
-validate(OperationID, Value, DefName, MsgType, ValidationOpts) ->
-    validate(OperationID, Value, DefName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
+validate(OperationID, Value, DefinitionName, MsgType, ValidationOpts) ->
+    validate(OperationID, Value, DefinitionName, MsgType, {{packageName}}_schema:get(), ValidationOpts).
 
-validate(OperationID, Value, DefName, MsgType, Schema, ValidationOpts) ->
+validate(OperationID, Value, DefinitionName, MsgType, Schema, ValidationOpts) ->
     ValidationKeywords = get_validation_keywords(MsgType, ValidationOpts),
     CustomValidator    = maps:get(custom_validator, ValidationOpts, undefined),
     Options = [
         {validator_opts, #{
-            validation_meta => make_meta(OperationID, DefName, MsgType),
+            validation_meta => make_context(OperationID, DefinitionName, MsgType),
             validation_keywords => ValidationKeywords,
             custom_validator => CustomValidator
         }} | options()
     ],
-    case jesse:validate_definition({{packageName}}_utils:to_list(DefName), Schema, Value, Options) of
+    case jesse:validate_definition({{packageName}}_utils:to_list(DefinitionName), Schema, Value, Options) of
         {ok, _} ->
             ok;
         {error, [Error]} ->
             {error, map_error_reason(Error)}
     end.
 
-make_meta(OperationID, DefName, MsgType) ->
+make_context(OperationID, DefinitionName, MsgType) ->
     #{
         operation_id => OperationID,
-        def_name => DefName,
+        definition_name => DefinitionName,
         msg_type => MsgType
     }.
 
@@ -515,16 +515,16 @@ get_error_description(?READ_ONLY_ERROR, _Value) ->
      }}">>).
 -define(PRED, 'Predicate').
 
-test_validate(Value, DefName, BinSchema) ->
-    test_validate(Value, DefName, BinSchema, response).
+test_validate(Value, DefinitionName, BinSchema) ->
+    test_validate(Value, DefinitionName, BinSchema, response).
 
-test_validate(Value, DefName, BinSchema, MsgType) ->
-    test_validate(Value, DefName, BinSchema, MsgType, #{}).
+test_validate(Value, DefinitionName, BinSchema, MsgType) ->
+    test_validate(Value, DefinitionName, BinSchema, MsgType, #{}).
 
-test_validate(Value, DefName, BinSchema, MsgType, Validation) ->
+test_validate(Value, DefinitionName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefName, MsgType, Schema, #{schema => Validation}) of
+    case validate(JsonValue, DefinitionName, MsgType, Schema, #{schema => Validation}) of
         ok             -> ok;
         {error, Error} -> Error
     end.

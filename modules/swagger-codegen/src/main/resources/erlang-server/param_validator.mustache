@@ -30,13 +30,13 @@
 
 -type validation_opts() :: {{packageName}}_validation:validation_opts().
 
--type meta() :: #{
+-type context() :: #{
     name := name(),
     msg_type := msg_type()
 }.
 
 -export_type([param_rule/0]).
--export_type([meta/0]).
+-export_type([context/0]).
 
 %% API
 
@@ -44,10 +44,10 @@
     result().
 
 validate(OperationID, Rule, Name, Value, MsgType, ValidationOpts) ->
-    Meta = make_meta(OperationID, Name, MsgType),
-    validate_with_meta(Rule, Value, Meta, ValidationOpts).
+    Meta = make_context(OperationID, Name, MsgType),
+    validate_with_context(Rule, Value, Meta, ValidationOpts).
 
-validate_with_meta(Rule, Value, Meta, ValidationOpts) ->
+validate_with_context(Rule, Value, Meta, ValidationOpts) ->
     case {{packageName}}_custom_validator:validate_param(Rule, Value, Meta, ValidationOpts) of
         pass -> do_validate(Rule, Value, Meta, ValidationOpts);
         Result -> Result
@@ -55,7 +55,7 @@ validate_with_meta(Rule, Value, Meta, ValidationOpts) ->
 
 %%
 
--spec do_validate(param_rule(), value(), meta(), validation_opts()) ->
+-spec do_validate(param_rule(), value(), context(), validation_opts()) ->
     result().
 
 do_validate(true, _Value, _Meta, _Opts) ->
@@ -142,7 +142,7 @@ do_validate({RuleName, _} = Rule, Value, _Meta, _Opts) when
 
 %% Internal
 
-make_meta(OperationID, Name, MsgType) ->
+make_context(OperationID, Name, MsgType) ->
     #{
         operation_id => OperationID,
         name => Name,
@@ -152,7 +152,7 @@ make_meta(OperationID, Name, MsgType) ->
 -spec validate_ruleset(
     Ruleset :: [param_base_rule()],
     Value   :: {{packageName}}:value(),
-    Meta    :: meta(),
+    Meta    :: context(),
     Opts    :: validation_opts()
 ) ->
     Value   :: {{packageName}}:value().
@@ -160,7 +160,7 @@ make_meta(OperationID, Name, MsgType) ->
 validate_ruleset(Ruleset, Value, Meta, Opts) ->
     lists:foldl(
         fun(R, V0) ->
-            case validate_with_meta(R, Value, Meta, Opts) of
+            case validate_with_context(R, Value, Meta, Opts) of
                 {ok, V} -> V;
                 ok -> V0;
                 error -> throw(wrong_param)
