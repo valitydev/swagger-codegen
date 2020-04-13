@@ -150,22 +150,6 @@ make_context(OperationID, Name, MsgType) ->
         msg_type => MsgType
     }.
 
-validate_date(Value) when is_binary(Value) ->
-    validate_datetime(<<Value/binary, "T00:00:00Z">>).
-
--spec validate_datetime(Value :: binary()) ->
-    ok | error.
-
-validate_datetime(Value) when is_binary(Value) ->
-  Str = erlang:binary_to_list(Value),
-  try calendar:rfc3339_to_system_time(Str) of
-    Seconds when is_integer(Seconds) ->
-      ok
-  catch
-    error:_ ->
-      error
-  end.
-
 -spec validate_ruleset(
     Ruleset :: [param_base_rule()],
     Value   :: {{packageName}}:value(),
