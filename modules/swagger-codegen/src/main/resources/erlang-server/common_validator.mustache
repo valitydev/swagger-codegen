@@ -177,9 +177,11 @@ validate_date(Value) when is_binary(Value) ->
     ok | error.
 
 validate_datetime(Value) when is_binary(Value) ->
-    case rfc3339:parse(Value) of
-        {ok, _} ->
-            ok;
-        {error, _} ->
+    Str = erlang:binary_to_list(Value),
+    try
+        _Seconds = calendar:rfc3339_to_system_time(Str),
+        ok
+    catch
+        error:_ ->
             error
     end.
