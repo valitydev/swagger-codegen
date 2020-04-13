@@ -524,7 +524,7 @@ test_validate(Value, DefinitionName, BinSchema, MsgType) ->
 test_validate(Value, DefinitionName, BinSchema, MsgType, Validation) ->
     Schema    = jsx:decode(BinSchema, [return_maps]),
     JsonValue = jsx:decode(Value, [return_maps]),
-    case validate(JsonValue, DefinitionName, MsgType, Schema, #{schema => Validation}) of
+    case validate(test, JsonValue, DefinitionName, MsgType, Schema, #{schema => Validation}) of
         ok             -> ok;
         {error, Error} -> Error
     end.
