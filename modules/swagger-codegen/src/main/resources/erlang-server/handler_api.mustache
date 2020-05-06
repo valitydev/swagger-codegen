@@ -138,28 +138,38 @@ populate_request(OperationID, [ParamSpec | T], Req0, Populated, ValidationOpts) 
     end.
 
 populate_request_param(OperationID, {Name, #{rules := Rules, source := Source}}, Req0, ValidationOpts) ->
+    ErrorSchema = maps:get(request_params_validation, ValidationOpts, undefined),
     case get_value(Source, Name, Req0) of
         {ok, Value, Req} ->
             case {{packageName}}_validation:prepare_request_param(OperationID, Rules, Name, Value, ValidationOpts) of
                 {ok, Result} ->
                     {ok, Name, Result, Req};
                 {error, Error}  ->
-                    {error, error_message(Name, Error), Req}
+                    {error, error_message(Name, ErrorSchema, Error), Req}
             end;
         {error, Message, Req} ->
-            {error, error_message(Name, wrong_body, Message), Req}
+            {error, error_message(Name, ErrorSchema, wrong_body, Message), Req}
     end.
 
 -spec error_message(Name :: {{packageName}}:param_name(), Error :: {{packageName}}_validation:error()) ->
     Message :: {{packageName}}:error_reason().
-error_message(Name, Error = #{type := Type}) ->
-    error_message(Name, Type, maps:get(description, Error, <<>>)).
 
-error_message(Name, ErrorType, Description) ->
+error_message(Name, ErrorSchema, Error = #{type := Type}) ->
+    error_message(Name, ErrorSchema, Type, maps:get(description, Error, <<>>)).
+
+error_message(Name, undefined, ErrorType, Description) ->
     jsx:encode(#{
         <<"name">>        => {{packageName}}_utils:to_binary(Name),
         <<"errorType">>   => {{packageName}}_utils:to_binary(ErrorType),
         <<"description">> => {{packageName}}_utils:to_binary(Description)
+    });
+error_message(Name, #{error_schema := {code_message, Code}}, ErrorType, Description) ->
+    ErrorTypeBin = {{packageName}}_utils:to_binary(ErrorType),
+    DescriptionBin = {{packageName}}_utils:to_binary(Description),
+    Message = <<ErrorTypeBin/binary, " ", DescriptionBin/binary>>>,
+    jsx:encode(#{
+        <<"code">> => Code,
+        <<"message" => Message
     }).
 
 determine_peer_from_header(undefined, {IP, Port}) ->
