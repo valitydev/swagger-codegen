@@ -12,9 +12,6 @@
     description => {{packageName}}:error_reason()
 }.
 
--type error_schema() :: {code_message, code_value()}.
--type code_value() :: binary().
-
 -type error_type() ::
     no_match        |
     not_found       |
@@ -27,10 +24,7 @@
 
 -type validation_opts() :: #{
     schema => {{packageName}}_schema_validator:schema_validation_opts(),
-    custom_validator => module(),
-    request_params_validation => #{
-        error_schema := error_schema()
-    }
+    custom_validator => module()
 }.
 
 -type msg_type() :: request | response.

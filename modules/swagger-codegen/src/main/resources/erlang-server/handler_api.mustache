@@ -3,7 +3,7 @@
 
 -export([authorize_api_key/5]).
 -export([determine_peer/1]).
--export([populate_request/4]).
+-export([populate_request/5]).
 -export([validate_response/4]).
 -export([encode_response/1]).
 -export([process_response/4]).
@@ -70,6 +70,7 @@ determine_peer(Req) ->
     determine_peer_from_header(Value, Peer).
 
 -spec populate_request(
+    LogicHandler :: {{packageName}}:_logic_handler(T),
     OperationID :: {{packageName}}:operation_id(),
     Spec :: request_spec(),
     Req :: cowboy_req:req(),
@@ -78,8 +79,8 @@ determine_peer(Req) ->
     {ok,    Populated :: {{packageName}}:object(),       Req :: cowboy_req:req()} |
     {error, Message   :: {{packageName}}:error_reason(), Req :: cowboy_req:req()}.
 
-populate_request(OperationID, Spec, Req, ValidationOpts) ->
-    populate_request(OperationID, Spec, Req, #{}, ValidationOpts).
+populate_request(LogicHandler, OperationID, Spec, Req, ValidationOpts) ->
+    populate_request(LogicHandler, OperationID, Spec, Req, #{}, ValidationOpts).
 
 -spec validate_response(
     OperationID :: {{packageName}}:operation_id(),
@@ -127,50 +128,29 @@ process_response(error, Message, Req, OperationID) ->
 
 %% Internal
 
-populate_request(_OperationID, [], Req, Populated, _ValidationOpts) ->
+populate_request(_LogicHandler, _OperationID, [], Req, Populated, _ValidationOpts) ->
     {ok, Populated, Req};
-populate_request(OperationID, [ParamSpec | T], Req0, Populated, ValidationOpts) ->
-    case populate_request_param(OperationID, ParamSpec, Req0, ValidationOpts) of
+populate_request(LogicHandler, OperationID, [ParamSpec | T], Req0, Populated, ValidationOpts) ->
+    case populate_request_param(LogicHandler, OperationID, ParamSpec, Req0, ValidationOpts) of
         {ok, K, V, Req} ->
             populate_request(OperationID, T, Req, maps:put(K, V, Populated), ValidationOpts);
         Error ->
             Error
     end.
 
-populate_request_param(OperationID, {Name, #{rules := Rules, source := Source}}, Req0, ValidationOpts) ->
-    ErrorSchema = maps:get(request_params_validation, ValidationOpts, undefined),
+populate_request_param(LogicHandler, OperationID, {Name, #{rules := Rules, source := Source}}, Req0, ValidationOpts) ->
     case get_value(Source, Name, Req0) of
         {ok, Value, Req} ->
             case {{packageName}}_validation:prepare_request_param(OperationID, Rules, Name, Value, ValidationOpts) of
                 {ok, Result} ->
                     {ok, Name, Result, Req};
                 {error, Error}  ->
-                    {error, error_message(Name, ErrorSchema, Error), Req}
+                    {error, {{packageName}}_logic_handler:error_message(LogicHandler, Name, Error), Req}
             end;
         {error, Message, Req} ->
-            {error, error_message(Name, ErrorSchema, wrong_body, Message), Req}
+            Error = Message#{type => wrong_body},
+            {error, {{packageName}}_logic_handler:error_message(LogicHandler, Name, Error), Req}
     end.
-
--spec error_message(Name :: {{packageName}}:param_name(), Error :: {{packageName}}_validation:error()) ->
-    Message :: {{packageName}}:error_reason().
-
-error_message(Name, ErrorSchema, Error = #{type := Type}) ->
-    error_message(Name, ErrorSchema, Type, maps:get(description, Error, <<>>)).
-
-error_message(Name, undefined, ErrorType, Description) ->
-    jsx:encode(#{
-        <<"name">>        => {{packageName}}_utils:to_binary(Name),
-        <<"errorType">>   => {{packageName}}_utils:to_binary(ErrorType),
-        <<"description">> => {{packageName}}_utils:to_binary(Description)
-    });
-error_message(Name, #{error_schema := {code_message, Code}}, ErrorType, Description) ->
-    ErrorTypeBin = {{packageName}}_utils:to_binary(ErrorType),
-    DescriptionBin = {{packageName}}_utils:to_binary(Description),
-    Message = <<ErrorTypeBin/binary, " ", DescriptionBin/binary>>>,
-    jsx:encode(#{
-        <<"code">> => Code,
-        <<"message" => Message
-    }).
 
 determine_peer_from_header(undefined, {IP, Port}) ->
     % undefined, assuming no proxies were involved
