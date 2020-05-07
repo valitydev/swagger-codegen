@@ -1,7 +1,7 @@
 -module({{packageName}}_logic_handler).
 
 -export([handle_request/4]).
--export([validation_error/3]).
+-export([validation_error_message/3]).
 
 -type operation_id()    :: {{packageName}}:operation_id().
 -type api_key()         :: {{packageName}}:api_key().
@@ -47,11 +47,11 @@ handle_request(Handler, OperationID, Request, Context) ->
     {Module, Opts} = get_mod_opts(Handler),
     Module:handle_request(OperationID, Request, Context, Opts).
 
--spec validation_error_message(logic_handler(_), param_name(), validation_error()) ->
+-spec validation_error_message(module(), param_name(), validation_error()) ->
     error_message().
 
 validation_error_message(Handler, Name, Error) ->
-    {Module, Opts} = get_mod_opts(Handler),
+    {Module, _Opts} = get_mod_opts(Handler),
     case erlang:function_exported(Module, validation_error_message, 2) of
         true ->
             Module:validation_error_message(Name, Error);

@@ -70,7 +70,7 @@ determine_peer(Req) ->
     determine_peer_from_header(Value, Peer).
 
 -spec populate_request(
-    LogicHandler :: {{packageName}}:logic_handler(T),
+    LogicHandler :: module(),
     OperationID :: {{packageName}}:operation_id(),
     Spec :: request_spec(),
     Req :: cowboy_req:req(),
@@ -148,8 +148,8 @@ populate_request_param(LogicHandler, OperationID, {Name, #{rules := Rules, sourc
                     {error, {{packageName}}_logic_handler:validation_error_message(LogicHandler, Name, Error), Req}
             end;
         {error, Message, Req} ->
-            Error = Message#{type => wrong_body},
-            {error, {{packageName}}_logic_handler:validation_error_message(LogicHandler, Name, Message), Req}
+            Error = #{type => wrong_body, description => Message},
+            {error, {{packageName}}_logic_handler:validation_error_message(LogicHandler, Name, Error), Req}
     end.
 
 determine_peer_from_header(undefined, {IP, Port}) ->
