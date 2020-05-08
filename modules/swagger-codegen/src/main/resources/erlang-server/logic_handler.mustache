@@ -11,7 +11,7 @@
 -type handler_opts(T)   :: {{packageName}}:handler_opts(T).
 -type logic_handler(T)  :: {{packageName}}:logic_handler(T).
 -type response()        :: {{packageName}}:response().
--type param_name()      :: {{packageName}}:param_name().
+
 -type validation_error() :: {{packageName}}_validation:error().
 -type error_type()      :: validation_error.
 -type error_message()   :: {{packageName}}:error_reason().
@@ -36,7 +36,7 @@
 -callback handle_request(operation_id(), object(), request_context(), handler_opts(_)) ->
     {ok | error, response()}.
 
--callback map_error(error_type(), param_name(), validation_error()) ->
+-callback map_error(error_type(), validation_error()) ->
     error_message().
 
 %% API
@@ -48,12 +48,12 @@ handle_request(Handler, OperationID, Request, Context) ->
     {Module, Opts} = get_mod_opts(Handler),
     Module:handle_request(OperationID, Request, Context, Opts).
 
--spec map_error(module(), {error_type(), param_name(), validation_error()}) ->
+-spec map_error(module(), {error_type(), validation_error()}) ->
     error_message().
 
-map_error(Handler, {Type, Name, Error}) ->
+map_error(Handler, {Type, Error}) ->
     {Module, _Opts} = get_mod_opts(Handler),
-    Module:map_error(Type, Name, Error).
+    Module:map_error(Type, Error).
 
 {{#authMethods}}
     {{#isApiKey}}

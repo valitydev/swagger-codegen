@@ -9,6 +9,7 @@
 
 -type error() :: #{
     type        := error_type(),
+    param_name  => {{packageName}}:param_name(),
     description => {{packageName}}:error_reason()
 }.
 
@@ -41,8 +42,8 @@
     try
         {ok, Block}
     catch
-        throw:{wrong_param, _Name, Error} ->
-            {error, Error}
+        throw:{wrong_param, Name, Error} ->
+            {error, Error#{param_name => Name}}
     end
 ).
 
