@@ -217,7 +217,7 @@ handle_request_json(
     }
 ) ->
     ValidationOpts = maps:get(validation_opts, SwaggerHandlerOpts, #{}),
-    case populate_request(OperationID, Req0, ValidationOpts) of
+    case populate_request(LogicHandler, OperationID, Req0, ValidationOpts) of
         {ok, Populated, Req1} ->
             {Status, Resp} = handle_request(LogicHandler, OperationID, Populated, Context),
             ok = validate_response(Status, Resp, OperationID, ValidationOpts),
@@ -229,9 +229,9 @@ handle_request_json(
 
 %% Internal
 
-populate_request(OperationID, Req, ValidationOpts) ->
+populate_request(LogicHandler, OperationID, Req, ValidationOpts) ->
     Spec = get_request_spec(OperationID),
-    {{packageName}}_handler_api:populate_request(OperationID, Spec, Req, ValidationOpts).
+    {{packageName}}_handler_api:populate_request(LogicHandler, OperationID, Spec, Req, ValidationOpts).
 
 handle_request(LogicHandler, OperationID, Populated, Context) ->
     {{packageName}}_logic_handler:handle_request(LogicHandler, OperationID, Populated, Context).
