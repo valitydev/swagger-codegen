@@ -16,6 +16,8 @@
 -type error_type()      :: validation_error.
 -type error_message()   :: {{packageName}}:error_reason().
 
+-export_type([error_type/0]).
+
 %% Behaviour definition
 
 {{#authMethods}}
@@ -34,10 +36,8 @@
 -callback handle_request(operation_id(), object(), request_context(), handler_opts(_)) ->
     {ok | error, response()}.
 
--callback validation_error_message(param_name(), validation_error()) ->
+-callback map_error(error_type(), param_name(), validation_error()) ->
     error_message().
-
--optional_callbacks([validation_error_message/2]).
 
 %% API
 
@@ -51,9 +51,9 @@ handle_request(Handler, OperationID, Request, Context) ->
 -spec map_error(module(), {error_type(), param_name(), validation_error()}) ->
     error_message().
 
-map_error(Handler, {validation_error, Name, Error}) ->
+map_error(Handler, {Type, Name, Error}) ->
     {Module, _Opts} = get_mod_opts(Handler),
-    Module:validation_error_message(Name, Error).
+    Module:map_error(Type, Name, Error).
 
 {{#authMethods}}
     {{#isApiKey}}
