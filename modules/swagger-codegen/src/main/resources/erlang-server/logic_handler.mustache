@@ -1,7 +1,7 @@
 -module({{packageName}}_logic_handler).
 
 -export([handle_request/4]).
--export([validation_error_message/3]).
+-export([map_error/2]).
 
 -type operation_id()    :: {{packageName}}:operation_id().
 -type api_key()         :: {{packageName}}:api_key().
@@ -13,6 +13,7 @@
 -type response()        :: {{packageName}}:response().
 -type param_name()      :: {{packageName}}:param_name().
 -type validation_error() :: {{packageName}}_validation:error().
+-type error_type()      :: validation_error.
 -type error_message()   :: {{packageName}}:error_reason().
 
 %% Behaviour definition
@@ -47,23 +48,12 @@ handle_request(Handler, OperationID, Request, Context) ->
     {Module, Opts} = get_mod_opts(Handler),
     Module:handle_request(OperationID, Request, Context, Opts).
 
--spec validation_error_message(module(), param_name(), validation_error()) ->
+-spec map_error(module(), {error_type(), param_name(), validation_error()}) ->
     error_message().
 
-validation_error_message(Handler, Name, Error) ->
+map_error(Handler, {validation_error, Name, Error}) ->
     {Module, _Opts} = get_mod_opts(Handler),
-    case erlang:function_exported(Module, validation_error_message, 2) of
-        true ->
-            Module:validation_error_message(Name, Error);
-        false ->
-            ErrorType = maps:get(type, Error),
-            Description = maps:get(description, Error, <<>>),
-            jsx:encode(#{
-                <<"name">>        => {{packageName}}_utils:to_binary(Name),
-                <<"errorType">>   => {{packageName}}_utils:to_binary(ErrorType),
-                <<"description">> => {{packageName}}_utils:to_binary(Description)
-            })
-    end.
+    Module:validation_error_message(Name, Error).
 
 {{#authMethods}}
     {{#isApiKey}}

@@ -145,11 +145,11 @@ populate_request_param(LogicHandler, OperationID, {Name, #{rules := Rules, sourc
                 {ok, Result} ->
                     {ok, Name, Result, Req};
                 {error, Error}  ->
-                    {error, {{packageName}}_logic_handler:validation_error_message(LogicHandler, Name, Error), Req}
+                    {error, {{packageName}}_logic_handler:map_error(LogicHandler, {validation_error, Name, Error}), Req}
             end;
         {error, Message, Req} ->
             Error = #{type => wrong_body, description => Message},
-            {error, {{packageName}}_logic_handler:validation_error_message(LogicHandler, Name, Error), Req}
+            {error, {{packageName}}_logic_handler:map_error(LogicHandler, {validation_error, Name, Error}), Req}
     end.
 
 determine_peer_from_header(undefined, {IP, Port}) ->
