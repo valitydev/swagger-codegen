@@ -13,6 +13,7 @@
 -export_type([handler_opts/1]).
 -export_type([status/0]).
 -export_type([headers/0]).
+-export_type([req/0]).
 -export_type([response_body/0]).
 -export_type([response/0]).
 
@@ -24,6 +25,7 @@
 -type object()          :: map().
 -type status()          :: cowboy:http_status().
 -type headers()         :: cowboy:http_headers().
+-type req()             :: cowboy_req:req().
 -type response_body()   :: object() | [object()] | undefined.
 -type response()        :: {status(), headers(), response_body()}.
 
@@ -34,7 +36,8 @@
 
 -type request_context() :: #{
     auth_context => AuthContext :: auth_context(),
-    peer         => client_peer()
+    peer         => client_peer(),
+    initial_req  => req()
 }.
 
 
