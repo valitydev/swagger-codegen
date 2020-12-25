@@ -45,7 +45,7 @@ init(Req, {_Operations, LogicHandler, SwaggerHandlerOpts} = InitOpts) ->
         operation_id  = OperationID,
         logic_handler = LogicHandler,
         swagger_handler_opts = SwaggerHandlerOpts,
-        context       = #{}
+        context       = #{cowboy_req => Req}
     },
     {cowboy_rest, Req, State}.
 
