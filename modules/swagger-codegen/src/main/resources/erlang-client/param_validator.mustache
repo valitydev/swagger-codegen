@@ -17,7 +17,7 @@
     {min, Min :: number(), Type :: exclusive | inclusive} |
     {max_length, MaxLength :: integer()} |
     {min_length, MaxLength :: integer()} |
-    {pattern, Pattern :: string()} |
+    {pattern, Pattern :: iodata() | unicode:charlist()} |
     boolean().
 -type collection_format() ::
     'csv' |

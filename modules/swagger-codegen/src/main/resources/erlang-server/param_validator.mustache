@@ -10,7 +10,7 @@
     {min, Min :: number(), Type :: exclusive | inclusive} |
     {max_length, MaxLength :: integer()} |
     {min_length, MaxLength :: integer()} |
-    {pattern, Pattern :: string()} |
+    {pattern, Pattern :: iodata() | unicode:charlist()} |
     boolean().
 -type collection_format() ::
     'csv' |
@@ -311,6 +311,6 @@ validate_array_test() ->
     ?assertEqual(error, test_validate({list, 'csv', [{format, 'int32'}]}, <<"10,xyi,12">>)).
 
 test_validate(Rule, Value) ->
-    do_validate(Rule, Value, #{name => 'Test', msg_type => request}, #{}).
+    do_validate(Rule, Value, #{name => 'Test', msg_type => request, operation_id => undefined}, #{}).
 
 -endif.
