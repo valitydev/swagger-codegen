@@ -35,12 +35,13 @@
     OperationID  :: {{packageName}}:operation_id(),
     From         :: header | qs_val,
     KeyParam     :: iodata() | atom(),
-    Req          :: cowboy_req:req()
+    Req          :: cowboy_req:req(),
+    Context      :: {{packageName}}:request_context()
 )->
     {true,  Context    :: {{packageName}}:auth_context(), Req ::cowboy_req:req()} |
     {false, AuthHeader :: binary(),                       Req ::cowboy_req:req()}.
 
-authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0) ->
+authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0, Context) ->
     {ok, ApiKey, Req} = get_value(From, KeyParam, Req0),
     case ApiKey of
         undefined ->
@@ -50,7 +51,8 @@ authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0) ->
             Result = {{packageName}}_logic_handler:authorize_api_key(
                 LogicHandler,
                 OperationID,
-                ApiKey
+                ApiKey,
+                Context
             ),
             case Result of
                 {true, Context}  ->

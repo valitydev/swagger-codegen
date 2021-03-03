@@ -22,13 +22,13 @@
 
 {{#authMethods}}
     {{#isApiKey}}
--export([authorize_api_key/3]).
+-export([authorize_api_key/4]).
     {{/isApiKey}}
 {{/authMethods}}
 
 {{#authMethods}}
     {{#isApiKey}}
--callback authorize_api_key(operation_id(), api_key(), handler_opts(_)) ->
+-callback authorize_api_key(operation_id(), api_key(), request_context(), handler_opts(_)) ->
     boolean() | {boolean(), auth_context()}.
     {{/isApiKey}}
 {{/authMethods}}
@@ -57,11 +57,11 @@ map_error(Handler, {Type, Error}) ->
 
 {{#authMethods}}
     {{#isApiKey}}
--spec authorize_api_key(logic_handler(_), operation_id(), api_key()) ->
+-spec authorize_api_key(logic_handler(_), operation_id(), api_key(), request_context()) ->
     false | {true, auth_context()}.
-authorize_api_key(Handler, OperationID, ApiKey) ->
+authorize_api_key(Handler, OperationID, ApiKey, Context) ->
     {Module, Opts} = get_mod_opts(Handler),
-    Module:authorize_api_key(OperationID, ApiKey, Opts).
+    Module:authorize_api_key(OperationID, ApiKey, Context, Opts).
     {{/isApiKey}}
 {{/authMethods}}
 

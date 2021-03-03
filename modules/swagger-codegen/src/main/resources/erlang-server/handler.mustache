@@ -88,7 +88,8 @@ is_authorized(
         OperationID,
         From,
         '{{keyParamName}}',
-        Req0
+        Req0,
+        Context
     ),
     case Result of
         {true, AuthContext, Req} ->
