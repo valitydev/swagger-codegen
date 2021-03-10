@@ -38,8 +38,8 @@
     Req          :: cowboy_req:req(),
     Context      :: {{packageName}}:request_context()
 )->
-    {true,  Context    :: {{packageName}}:auth_context(), Req ::cowboy_req:req()} |
-    {false, AuthHeader :: binary(),                       Req ::cowboy_req:req()}.
+    {true, {{packageName}}:auth_context(), cowboy_req:req()} |
+    {false, AuthHeader :: binary(), cowboy_req:req()}.
 
 authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0, Context) ->
     {ok, ApiKey, Req} = get_value(From, KeyParam, Req0),
@@ -55,8 +55,8 @@ authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0, Context) ->
                 Context
             ),
             case Result of
-                {true, Context}  ->
-                    {true, Context, Req};
+                {true, AuthContext}  ->
+                    {true, AuthContext, Req};
                 false ->
                     AuthHeader = <<"">>,
                     {false, AuthHeader, Req}
