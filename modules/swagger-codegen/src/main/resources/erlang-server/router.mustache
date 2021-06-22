@@ -31,7 +31,7 @@
 -export_type([init_opts/0]).
 -export_type([operation_spec/0]).
 
--spec get_paths(LogicHandler :: atom()) ->  [{'_',[{
+-spec get_paths(LogicHandler :: logic_handler(_)) ->  [{'_',[{
     Path :: string(),
     Handler :: atom(),
     InitOpts :: init_opts()
@@ -40,7 +40,7 @@
 get_paths(LogicHandler) ->
     get_paths(LogicHandler, #{}).
 
--spec get_paths(LogicHandler :: atom(), SwaggerHandlerOpts :: swagger_handler_opts()) ->  [{'_',[{
+-spec get_paths(LogicHandler :: logic_handler(_), SwaggerHandlerOpts :: swagger_handler_opts()) ->  [{'_',[{
     Path :: string(),
     Handler :: atom(),
     InitOpts :: init_opts()
