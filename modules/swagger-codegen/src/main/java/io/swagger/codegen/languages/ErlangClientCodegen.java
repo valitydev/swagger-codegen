@@ -203,6 +203,18 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         return "_" + name;  // add an underscore to the name
     }
 
+    @Override
+    public String escapeQuotationMark(String input) {
+        // remove ' to avoid code injection
+        return input.replace("'", "");
+    }
+
+    @Override
+    public String escapeUnsafeCharacters(String input) {
+        // ref: http://stackoverflow.com/a/30421295/677735
+        return input.replace("-ifdef", "- if def").replace("-endif", "- end if");
+    }
+
     /**
      * Location to write api files.  You can use the apiPackage() as defined when the class is
      * instantiated
