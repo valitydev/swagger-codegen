@@ -109,55 +109,8 @@ validate({RuleName, _} = Rule, Value) when
 ->
     {{packageName}}_common_validator:validate(Rule, Value).
 
--spec validate_between(Value :: {{packageName}}:value(), Min :: integer(), Max :: integer()) ->
-    ok | no_return().
-
-validate_between(Value, Min, Max) when
-    is_integer(Value),
-    Value >= Min,
-    Value =< Max ->
-    ok;
-
-validate_between(_, _, _) ->
-    error(badarg).
-
 
 %% Internal
-
--spec validate_base64(Value :: {{packageName}}:value()) ->
-    ok | no_return().
-
-validate_base64(Value) when is_binary(Value) ->
-    try
-        _ = base64:decode(Value),
-        ok
-    catch
-        _:_ ->
-            error(badarg)
-    end;
-
-validate_base64(_) ->
-    error(badarg).
-
-
--spec validate_date(Value :: binary()) ->
-    ok | error.
-
-validate_date(Value) when is_binary(Value) ->
-    validate_datetime(<<Value/binary, "T00:00:00Z">>).
-
--spec validate_datetime(Value :: binary()) ->
-    ok | error.
-
-validate_datetime(Value) when is_binary(Value) ->
-    Str = erlang:binary_to_list(Value),
-    try
-        _Seconds = calendar:rfc3339_to_system_time(Str),
-        ok
-    catch
-        error:_ ->
-            error
-    end.
 
 -spec validate_ruleset(
     Ruleset :: [param_base_rule()],
@@ -209,6 +162,8 @@ get_split_pattern('pipes') ->
 -spec validate_boolean_test() -> _.
 -spec validate_date_test() -> _.
 -spec validate_datetime_test() -> _.
+-spec validate_email_test() -> _.
+-spec validate_ip_address_test() -> _.
 -spec validate_enum_test() -> _.
 -spec validate_max_test() -> _.
 -spec validate_min_test() -> _.
@@ -257,9 +212,20 @@ validate_date_test() ->
     ?assertEqual(error, validate({type, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
 
 validate_datetime_test() ->
-    ?assertEqual(ok, validate({type, 'datetime'}, <<"2014-03-19T18:35:03-04:00">>)),
-    ?assertEqual(error, validate({type, 'datetime'}, <<"2014-11-19">>)),
-    ?assertEqual(error, validate({type, 'datetime'}, <<"nope">>)).
+    ?assertEqual(ok, validate({type, 'date-time'}, <<"2014-03-19T18:35:03-04:00">>)),
+    ?assertEqual(error, validate({type, 'date-time'}, <<"2014-11-19">>)),
+    ?assertEqual(error, validate({type, 'date-time'}, <<"nope">>)).
+
+validate_email_test() ->
+    ?assertEqual(ok, validate({type, 'email'}, <<"me@example.com">>)),
+    ?assertEqual(error, validate({type, 'email'}, <<"m\\e@example.com">>)),
+    ?assertEqual(error, validate({type, 'email'}, <<"nope">>)).
+
+validate_ip_address_test() ->
+    ?assertEqual(ok, validate({type, 'ip-address'}, <<"127.0.0.1">>)),
+    ?assertEqual(ok, validate({type, 'ip-address'}, <<"::1">>)),
+    ?assertEqual(error, validate({type, 'ip-address'}, <<"127.0.0.0.1">>)),
+    ?assertEqual(error, validate({type, 'ip-address'}, <<"nope">>)).
 
 validate_enum_test() ->
     ?assertEqual({ok, sad}, validate({enum, [i, am, sad]} , <<"sad">>)),

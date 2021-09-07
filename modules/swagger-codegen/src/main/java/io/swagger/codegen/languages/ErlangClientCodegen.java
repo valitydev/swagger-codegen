@@ -125,6 +125,7 @@ public class ErlangClientCodegen extends DefaultCodegen implements CodegenConfig
         supportingFiles.add(new SupportingFile("utils.mustache", "", toSourceFilePath("utils", "erl")));
         supportingFiles.add(new SupportingFile("types.mustache", "", toPackageNameSrcFile("erl")));
         supportingFiles.add(new SupportingFile("validation.mustache", "", toSourceFilePath("validation", "erl")));
+        supportingFiles.add(new SupportingFile("common_validator.mustache", "", toSourceFilePath("common_validator", "erl")));
         supportingFiles.add(new SupportingFile("param_validator.mustache", "", toSourceFilePath("param_validator", "erl")));
         supportingFiles.add(new SupportingFile("schema_validator.mustache", "", toSourceFilePath("schema_validator", "erl")));
         supportingFiles.add(new SupportingFile("schema.mustache", "", toSourceFilePath("schema", "erl")));
