@@ -201,7 +201,9 @@ do_check_value(Value, {?FORMAT, Format}, State) when
     Format =:= <<"date">>       orelse
     Format =:= <<"date-time">>  orelse
     Format =:= <<"ip-address">> orelse
-    Format =:= <<"email">>
+    Format =:= <<"email">>      orelse
+    Format =:= <<"http-url">>   orelse
+    Format =:= <<"uri">>
 ->
     case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->

@@ -116,15 +116,28 @@ validate_schema(Value, Schema, State0) ->
             jesse_error:handle_schema_invalid(schema_invalid, State0)
     end.
 
-validate_format(Value, {?FORMAT, Format}, State) when
-    Format =:= <<"int32">>  orelse
-    Format =:= <<"int64">>  orelse
-    Format =:= <<"float">>  orelse
-    Format =:= <<"byte">>   orelse
-    Format =:= <<"binary">> orelse
-    Format =:= <<"date">>
+validate_format(Value, {?FORMAT, Type}, State) when
+    Type =:= <<"float">> orelse
+    Type =:= <<"byte">>  orelse
+    Type =:= <<"binary">>
 ->
-    case {{packageName}}_param_validator:validate({type, erlang:binary_to_atom(Format, utf8)}, Value) of
+    case {{packageName}}_common_validator:validate({type, erlang:binary_to_atom(Type, utf8)}, Value) of
+        error ->
+            jesse_error:handle_data_invalid(wrong_format, Value, State);
+        _ ->
+            State
+    end;
+validate_format(Value, {?FORMAT, Format}, State) when
+    Format =:= <<"int32">>      orelse
+    Format =:= <<"int64">>      orelse
+    Format =:= <<"date">>       orelse
+    Format =:= <<"date-time">>  orelse
+    Format =:= <<"ip-address">> orelse
+    Format =:= <<"email">>      orelse
+    Format =:= <<"http-url">>   orelse
+    Format =:= <<"uri">>
+->
+    case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, State);
         _ ->

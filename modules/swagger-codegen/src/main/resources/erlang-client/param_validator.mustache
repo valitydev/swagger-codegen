@@ -4,14 +4,7 @@
 -export([validate/2]).
 
 -type param_base_rule() ::
-    {type, 'binary'} |
-    {type, 'byte'} |
-    {type, 'int32'} |
-    {type, 'int64'} |
-    {type, 'float'} |
-    {type, 'boolean'} |
-    {type, 'date'} |
-    {type, 'datetime'} |
+    {{packageName}}_common_validator:param_rule() |
     {enum, [atom()]} |
     {max, Max :: number(), Type :: exclusive | inclusive} |
     {min, Min :: number(), Type :: exclusive | inclusive} |
@@ -49,76 +42,6 @@ validate({'list', Format, Ruleset}, Value) ->
     catch
         _:_ ->
             error
-    end;
-
-validate({type, 'int64'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        ok = validate_between(Value, -9223372036854775808, 922337203685477580),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'int32'}, Value0) ->
-    try
-        Value = {{packageName}}_utils:to_int(Value0),
-        ok = validate_between(Value, -2147483648, 2147483647),
-        {ok, Value}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'float'}, Value) ->
-    try
-        {ok, {{packageName}}_utils:to_float(Value)}
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'binary'}, Value) ->
-    case is_binary(Value) of
-        true -> ok;
-        false -> error
-    end;
-
-validate({type, 'byte'}, Value) ->
-    try
-        validate_base64(Value)
-    catch error:badarg ->
-        error
-    end;
-
-validate({type, 'boolean'},  Value) when is_boolean(Value) ->
-    {ok, Value};
-
-validate({type, 'boolean'}, Value) ->
-    V = {{packageName}}_utils:to_lower(Value),
-    try
-        case {{packageName}}_utils:binary_to_existing_atom(V, utf8) of
-            B when is_boolean(B) -> {ok, B};
-            _ -> error
-        end
-    catch
-        error:badarg ->
-            error
-    end;
-
-validate({type, 'date'}, Value) ->
-    case is_binary(Value) of
-        true ->
-            validate_date(Value);
-        false -> error
-    end;
-
-validate({type, 'datetime'}, Value) ->
-    case is_binary(Value) of
-        true ->
-            validate_datetime(Value);
-        false -> error
     end;
 
 validate({enum, Values}, Value) ->
@@ -178,7 +101,13 @@ validate({pattern, Pattern}, Value) ->
     case re:run(Value, MP) of
         {match, _} -> ok;
         _ -> error
-    end.
+    end;
+
+validate({RuleName, _} = Rule, Value) when
+    RuleName =:= type;
+    RuleName =:= format
+->
+    {{packageName}}_common_validator:validate(Rule, Value).
 
 -spec validate_between(Value :: {{packageName}}:value(), Min :: integer(), Max :: integer()) ->
     ok | no_return().
