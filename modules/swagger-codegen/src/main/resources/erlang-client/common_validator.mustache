@@ -146,7 +146,7 @@ validate({format, 'http-url'}, Value) when is_binary(Value) ->
 
 validate({format, 'uri'}, Value) when is_binary(Value) ->
     case uri_string:parse(Value) of
-        #{scheme := _, host := _, path := _} ->
+        #{scheme := _, path := _} -> %% Scheme and path a required by RFC3986
             ok;
         _ ->
             error
