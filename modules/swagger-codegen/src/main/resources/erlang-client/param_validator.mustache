@@ -173,16 +173,16 @@ get_split_pattern('pipes') ->
 -spec validate_array_test() -> _.
 
 validate_int64_test() ->
-    ?assertEqual({ok, 2}, validate({type, 'int64'},2)),
-    ?assertEqual({ok, 6}, validate({type, 'int64'},<<"6">>)),
-    ?assertEqual(error, validate({type, 'int64'}, 922337203685477581)),
-    ?assertEqual(error, validate({type, 'int64'},-9223372036854775809)).
+    ?assertEqual({ok, 2}, validate({format, 'int64'},2)),
+    ?assertEqual({ok, 6}, validate({format, 'int64'},<<"6">>)),
+    ?assertEqual(error, validate({format, 'int64'}, 922337203685477581)),
+    ?assertEqual(error, validate({format, 'int64'},-9223372036854775809)).
 
 validate_int32_test() ->
-    ?assertEqual({ok, 6}, validate({type, 'int32'}, 6)),
-    ?assertEqual({ok, 21}, validate({type, 'int32'}, <<"21">>)),
-    ?assertEqual(error, validate({type, 'int32'}, -2147483649)),
-    ?assertEqual(error, validate({type, 'int32'},2147483648)).
+    ?assertEqual({ok, 6}, validate({format, 'int32'}, 6)),
+    ?assertEqual({ok, 21}, validate({format, 'int32'}, <<"21">>)),
+    ?assertEqual(error, validate({format, 'int32'}, -2147483649)),
+    ?assertEqual(error, validate({format, 'int32'},2147483648)).
 
 validate_float_test() ->
     ?assertEqual({ok, 1.9}, validate({type, 'float'}, <<"1.9">>)),
@@ -205,27 +205,27 @@ validate_boolean_test() ->
     ?assertEqual(error, validate({type, 'boolean'}, <<"nope">>)).
 
 validate_date_test() ->
-    ?assertEqual(ok, validate({type, 'date'}, <<"2014-03-19">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"2014-19-03">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"2013">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"nope">>)),
-    ?assertEqual(error, validate({type, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
+    ?assertEqual(ok, validate({format, 'date'}, <<"2014-03-19">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"2014-19-03">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"2013">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"nope">>)),
+    ?assertEqual(error, validate({format, 'date'}, <<"2014-03-19 18:00:05-04:00">>)).
 
 validate_datetime_test() ->
-    ?assertEqual(ok, validate({type, 'date-time'}, <<"2014-03-19T18:35:03-04:00">>)),
-    ?assertEqual(error, validate({type, 'date-time'}, <<"2014-11-19">>)),
-    ?assertEqual(error, validate({type, 'date-time'}, <<"nope">>)).
+    ?assertEqual(ok, validate({format, 'date-time'}, <<"2014-03-19T18:35:03-04:00">>)),
+    ?assertEqual(error, validate({format, 'date-time'}, <<"2014-11-19">>)),
+    ?assertEqual(error, validate({format, 'date-time'}, <<"nope">>)).
 
 validate_email_test() ->
-    ?assertEqual(ok, validate({type, 'email'}, <<"me@example.com">>)),
-    ?assertEqual(error, validate({type, 'email'}, <<"m\\e@example.com">>)),
-    ?assertEqual(error, validate({type, 'email'}, <<"nope">>)).
+    ?assertEqual(ok, validate({format, 'email'}, <<"me@example.com">>)),
+    ?assertEqual(error, validate({format, 'email'}, <<"m\\e@example.com">>)),
+    ?assertEqual(error, validate({format, 'email'}, <<"nope">>)).
 
 validate_ip_address_test() ->
-    ?assertEqual(ok, validate({type, 'ip-address'}, <<"127.0.0.1">>)),
-    ?assertEqual(ok, validate({type, 'ip-address'}, <<"::1">>)),
-    ?assertEqual(error, validate({type, 'ip-address'}, <<"127.0.0.0.1">>)),
-    ?assertEqual(error, validate({type, 'ip-address'}, <<"nope">>)).
+    ?assertEqual(ok, validate({format, 'ip-address'}, <<"127.0.0.1">>)),
+    ?assertEqual(ok, validate({format, 'ip-address'}, <<"::1">>)),
+    ?assertEqual(error, validate({format, 'ip-address'}, <<"127.0.0.0.1">>)),
+    ?assertEqual(error, validate({format, 'ip-address'}, <<"nope">>)).
 
 validate_enum_test() ->
     ?assertEqual({ok, sad}, validate({enum, [i, am, sad]} , <<"sad">>)),
@@ -261,7 +261,7 @@ validate_pattern_test() ->
     ?assertEqual(error, validate({pattern, <<"^[0-9]{2}\/[0-9]{2}$">>}, <<"22/225">>)).
 
 validate_array_test() ->
-    ?assertEqual({ok, [10,11,12]}, validate({list, 'csv', [{type, 'int32'}]}, <<"10,11,12">>)),
-    ?assertEqual(error, validate({list, 'csv', [{type, 'int32'}]}, <<"10,xyi,12">>)).
+    ?assertEqual({ok, [10,11,12]}, validate({list, 'csv', [{type, 'integer'}]}, <<"10,11,12">>)),
+    ?assertEqual(error, validate({list, 'csv', [{type, 'integer'}]}, <<"10,xyi,12">>)).
 
 -endif.

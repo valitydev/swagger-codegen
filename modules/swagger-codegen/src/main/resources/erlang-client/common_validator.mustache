@@ -13,14 +13,14 @@
     %{type, 'map'}     | ?
     %{type, 'object'}  | ?
     %{type, 'file'}    | ?
-    {type, 'int32'}      |
-    {type, 'int64'}      |
-    {type, 'date'}       |
-    {type, 'date-time'}  |
-    {type, 'email'}      |
-    {type, 'ip-address'} |
-    {type, 'http-url'}   |
-    {type, 'uri'}.
+    {format, 'int32'}      |
+    {format, 'int64'}      |
+    {format, 'date'}       |
+    {format, 'date-time'}  |
+    {format, 'email'}      |
+    {format, 'ip-address'} |
+    {format, 'http-url'}   |
+    {format, 'uri'}.
 
 -type result() ::
     ok | {ok, Prepared :: {{packageName}}:value()} | error | {error, Message :: term()}.
@@ -80,7 +80,7 @@ validate({type, 'float'}, Value) ->
 
 %% FORMATS
 
-validate({type, 'int64'}, Value0) ->
+validate({format, 'int64'}, Value0) ->
     try
         Value = {{packageName}}_utils:to_int(Value0),
         ok = validate_between(Value, -9223372036854775808, 922337203685477580),
@@ -90,7 +90,7 @@ validate({type, 'int64'}, Value0) ->
             error
     end;
 
-validate({type, 'int32'}, Value0) ->
+validate({format, 'int32'}, Value0) ->
     try
         Value = {{packageName}}_utils:to_int(Value0),
         ok = validate_between(Value, -2147483648, 2147483647),
@@ -100,29 +100,29 @@ validate({type, 'int32'}, Value0) ->
             error
     end;
 
-validate({type, 'date'}, Value) ->
+validate({format, 'date'}, Value) ->
     case is_binary(Value) of
         true ->
             validate_date(Value);
         false -> error
     end;
 
-validate({type, 'date-time'}, Value) ->
+validate({format, 'date-time'}, Value) ->
     case is_binary(Value) of
         true ->
             validate_datetime(Value);
         false -> error
     end;
 
-validate({type, 'email'}, Value) when is_binary(Value) ->
+validate({format, 'email'}, Value) when is_binary(Value) ->
     case email_validator:validate(Value) of
         ok -> ok;
         {error, _} -> error
     end;
-validate({type, 'email'}, _Value) ->
+validate({format, 'email'}, _Value) ->
     error;
 
-validate({type, 'ip-address'}, Value0) when is_binary(Value0) ->
+validate({format, 'ip-address'}, Value0) when is_binary(Value0) ->
     Value = binary_to_list(Value0),
     case inet:parse_strict_address(Value) of
         {ok, _IPAddress} ->
@@ -130,10 +130,10 @@ validate({type, 'ip-address'}, Value0) when is_binary(Value0) ->
         {error, einval} ->
             error
     end;
-validate({type, 'ip-address'}, _Value) ->
+validate({format, 'ip-address'}, _Value) ->
     error;
 
-validate({type, 'http-url'}, Value) when is_binary(Value) ->
+validate({format, 'http-url'}, Value) when is_binary(Value) ->
     case uri_string:parse(Value) of
         #{scheme := Scheme} when
             Scheme =:= <<"http">> orelse
@@ -144,17 +144,13 @@ validate({type, 'http-url'}, Value) when is_binary(Value) ->
             error
     end;
 
-validate({type, 'uri'}, Value) when is_binary(Value) ->
+validate({format, 'uri'}, Value) when is_binary(Value) ->
     case uri_string:parse(Value) of
         #{} ->
             ok;
         Error when is_atom(Error) ->
             error
-    end;
-
-validate({type, Unknown}, _Value) ->
-    _ = error_logger:warning_msg("Attempted to validate unknown format ~p, ignored.", [Unknown]),
-    ok.
+    end.
 
 %%
 

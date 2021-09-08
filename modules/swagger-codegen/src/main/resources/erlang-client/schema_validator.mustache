@@ -137,7 +137,7 @@ validate_format(Value, {?FORMAT, Format}, State) when
     Format =:= <<"http-url">>   orelse
     Format =:= <<"uri">>
 ->
-    case {{packageName}}_common_validator:validate({type, erlang:binary_to_atom(Format, utf8)}, Value) of
+    case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, State);
         _ ->

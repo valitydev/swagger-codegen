@@ -150,11 +150,7 @@ validate({format, 'uri'}, Value) when is_binary(Value) ->
             ok;
         Error when is_atom(Error) ->
             error
-    end;
-
-validate({format, Unknown}, _Value) ->
-    _ = error_logger:warning_msg("Attempted to validate unknown format ~p, ignored.", [Unknown]),
-    ok.
+    end.
 
 %%
 
