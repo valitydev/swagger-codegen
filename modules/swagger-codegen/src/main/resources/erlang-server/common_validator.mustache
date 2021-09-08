@@ -135,20 +135,20 @@ validate({format, 'ip-address'}, _Value) ->
 
 validate({format, 'http-url'}, Value) when is_binary(Value) ->
     case uri_string:parse(Value) of
-        #{scheme := Scheme} when
+        #{scheme := Scheme, host := _, path := _} when
             Scheme =:= <<"http">> orelse
             Scheme =:= <<"https">>
         ->
             ok;
-        Error when is_atom(Error) ->
+        _ ->
             error
     end;
 
 validate({format, 'uri'}, Value) when is_binary(Value) ->
     case uri_string:parse(Value) of
-        #{} ->
+        #{scheme := _, host := _, path := _} ->
             ok;
-        Error when is_atom(Error) ->
+        _ ->
             error
     end.
 

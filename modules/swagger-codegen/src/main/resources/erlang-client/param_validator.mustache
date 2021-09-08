@@ -154,6 +154,7 @@ get_split_pattern('pipes') ->
 -include_lib("eunit/include/eunit.hrl").
 
 -spec test() -> _.
+-spec validate_integer_test() -> _.
 -spec validate_int64_test() -> _.
 -spec validate_int32_test() -> _.
 -spec validate_float_test() -> _.
@@ -164,6 +165,8 @@ get_split_pattern('pipes') ->
 -spec validate_datetime_test() -> _.
 -spec validate_email_test() -> _.
 -spec validate_ip_address_test() -> _.
+-spec validate_uri_test() -> _.
+-spec validate_http_url_test() -> _.
 -spec validate_enum_test() -> _.
 -spec validate_max_test() -> _.
 -spec validate_min_test() -> _.
@@ -171,6 +174,11 @@ get_split_pattern('pipes') ->
 -spec validate_min_length_test() -> _.
 -spec validate_pattern_test() -> _.
 -spec validate_array_test() -> _.
+
+validate_integer_test() ->
+    ?assertEqual({ok, 2}, validate({type, 'integer'}, 2)),
+    ?assertEqual({ok, 6}, validate({type, 'integer'}, <<"6">>)),
+    ?assertEqual(error,   validate({type, 'integer'}, <<"nope">>)).
 
 validate_int64_test() ->
     ?assertEqual({ok, 2}, validate({format, 'int64'},2)),
@@ -226,6 +234,16 @@ validate_ip_address_test() ->
     ?assertEqual(ok, validate({format, 'ip-address'}, <<"::1">>)),
     ?assertEqual(error, validate({format, 'ip-address'}, <<"127.0.0.0.1">>)),
     ?assertEqual(error, validate({format, 'ip-address'}, <<"nope">>)).
+
+validate_uri_test() ->
+    ?assertEqual(ok, validate({format, 'uri'}, <<"http://localhost">>)),
+    ?assertEqual(ok, validate({format, 'uri'}, <<"ftp://user@host:21/home">>)),
+    ?assertEqual(error, validate({format, 'uri'}, <<"127.0.0.1">>)),
+    ?assertEqual(error, validate({format, 'uri'}, <<"example.com">>)).
+
+validate_http_url_test() ->
+    ?assertEqual(ok, validate({format, 'http-url'}, <<"http://localhost">>)),
+    ?assertEqual(error, validate({format, 'http-url'}, <<"ftp://user@host:21/home">>)).
 
 validate_enum_test() ->
     ?assertEqual({ok, sad}, validate({enum, [i, am, sad]} , <<"sad">>)),
