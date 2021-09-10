@@ -195,7 +195,6 @@ get_split_pattern('pipes') ->
 
 -spec test() -> _.
 -spec validate_integer_test() -> _.
--spec validate_ip_address_test() -> _.
 -spec validate_int64_test() -> _.
 -spec validate_int32_test() -> _.
 -spec validate_float_test() -> _.
@@ -205,6 +204,9 @@ get_split_pattern('pipes') ->
 -spec validate_date_test() -> _.
 -spec validate_datetime_test() -> _.
 -spec validate_email_test() -> _.
+-spec validate_ip_address_test() -> _.
+-spec validate_uri_test() -> _.
+-spec validate_http_url_test() -> _.
 -spec validate_enum_test() -> _.
 -spec validate_max_test() -> _.
 -spec validate_min_test() -> _.
@@ -272,6 +274,16 @@ validate_ip_address_test() ->
     ?assertEqual(ok, test_validate({format, 'ip-address'}, <<"::1">>)),
     ?assertEqual(error, test_validate({format, 'ip-address'}, <<"127.0.0.0.1">>)),
     ?assertEqual(error, test_validate({format, 'ip-address'}, <<"nope">>)).
+
+validate_uri_test() ->
+    ?assertEqual(ok, test_validate({format, 'uri'}, <<"http://localhost">>)),
+    ?assertEqual(ok, test_validate({format, 'uri'}, <<"ftp://user@host:21/home">>)),
+    ?assertEqual(error, test_validate({format, 'uri'}, <<"127.0.0.1">>)),
+    ?assertEqual(error, test_validate({format, 'uri'}, <<"example.com">>)).
+
+validate_http_url_test() ->
+    ?assertEqual(ok, test_validate({format, 'http-url'}, <<"http://localhost">>)),
+    ?assertEqual(error, test_validate({format, 'http-url'}, <<"ftp://user@host:21/home">>)).
 
 validate_enum_test() ->
     ?assertEqual({ok, sad}, test_validate({enum, [i, am, sad]} , <<"sad">>)),

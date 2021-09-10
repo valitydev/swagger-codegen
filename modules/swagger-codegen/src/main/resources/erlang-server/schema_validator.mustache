@@ -201,7 +201,9 @@ do_check_value(Value, {?FORMAT, Format}, State) when
     Format =:= <<"date">>       orelse
     Format =:= <<"date-time">>  orelse
     Format =:= <<"ip-address">> orelse
-    Format =:= <<"email">>
+    Format =:= <<"email">>      orelse
+    Format =:= <<"http-url">>   orelse
+    Format =:= <<"uri">>
 ->
     case {{packageName}}_common_validator:validate({format, erlang:binary_to_atom(Format, utf8)}, Value) of
         error ->
@@ -410,7 +412,8 @@ get_error_description(?READ_ONLY_ERROR, _Value) ->
          \"properties\": {
             \"name\":       {\"type\": \"string\"},
             \"petType\":    {\"type\": \"string\"},
-            \"ownerEmail\": {\"type\": \"string\", \"format\": \"email\"}
+            \"ownerEmail\": {\"type\": \"string\", \"format\": \"email\"},
+            \"ownerHomepage\": {\"type\": \"string\", \"format\": \"http-url\"}
          },
          \"required\": [\"name\", \"petType\"]
        },
@@ -555,7 +558,10 @@ ok_email_test() ->
         \"huntingSkill\": \"adventurous\",
         \"ownerEmail\":   \"me@example.com\"
     }">>,
-    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)),
+    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)).
+
+-spec wrong_email_test() -> _.
+wrong_email_test() ->
     Pet1 = <<"{
         \"name\":         \"Fluffy\",
         \"petType\":      \"Cat\",
@@ -563,6 +569,26 @@ ok_email_test() ->
         \"ownerEmail\":   \"not an email\"
     }">>,
     ?assertEqual(expect(wrong_format, [<<"ownerEmail">>]), test_validate(Pet1, ?PET, ?PET_SCHEMA)).
+
+-spec ok_homepage_test() -> _.
+ok_homepage_test() ->
+    Pet0 = <<"{
+        \"name\":         \"Fluffy\",
+        \"petType\":      \"Cat\",
+        \"huntingSkill\": \"adventurous\",
+        \"ownerHomepage\": \"http://localhost/\"
+    }">>,
+    ?assertEqual(ok, test_validate(Pet0, ?PET, ?PET_SCHEMA)).
+
+-spec wrong_homepage_test() -> _.
+wrong_homepage_test() ->
+    Pet1 = <<"{
+        \"name\":         \"Fluffy\",
+        \"petType\":      \"Cat\",
+        \"huntingSkill\": \"adventurous\",
+        \"ownerHomepage\": \"ftp://file@share\"
+    }">>,
+    ?assertEqual(expect(wrong_format, [<<"ownerHomepage">>]), test_validate(Pet1, ?PET, ?PET_SCHEMA)).
 
 -spec bad_1st_level_discr_simple_test() -> _.
 bad_1st_level_discr_simple_test() ->
