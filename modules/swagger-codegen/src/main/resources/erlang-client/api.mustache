@@ -58,10 +58,7 @@ get_request_spec('{{operationId}}') ->
             rules  => [{{^isBodyParam}}{{#isListContainer}}{list, '{{collectionFormat}}', {{#items}}[{{#datatype}}{type, '{{datatype}}'}, {{/datatype}}{{>api.param_info}}]{{/items}}}, {{/isListContainer}}{{^isListContainer}}{{#dataType}}{type, '{{dataType}}'}, {{/dataType}}{{/isListContainer}}{{>api.param_info}}, {{/isBodyParam}}{{#isBodyParam}}schema, {{/isBodyParam}}{required, {{#required}}true{{/required}}{{^required}}false{{/required}}}]
         }}{{#hasMore}},
         {{/hasMore}}{{/allParams}}
-    ];
-{{/operation}}{{/operations}}
-get_request_spec(OperationID) ->
-    error({invalid_operation_id, OperationID}).
+    ]{{#hasMore}};{{/hasMore}}{{/operation}}.{{/operations}}
 
 -spec get_response_spec(OperationID :: {{packageName}}:operation_id(), Code :: {{packageName}}_procession:code()) ->
     Spec :: {{packageName}}_procession:response_spec() | no_return().
