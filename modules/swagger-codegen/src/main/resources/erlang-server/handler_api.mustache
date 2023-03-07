@@ -68,7 +68,8 @@ authorize_api_key(LogicHandler, OperationID, From, KeyParam, Req0, Context) ->
 
 determine_peer(Req) ->
     Peer  = cowboy_req:peer(Req),
-    Value = cowboy_req:header(<<"x-forwarded-for">>, Req),
+    Header = application:get_env(swag_server, ip_addr_header, <<"x-forwarded-for">>),
+    Value = cowboy_req:header(Header, Req),
     determine_peer_from_header(Value, Peer).
 
 -spec populate_request(
